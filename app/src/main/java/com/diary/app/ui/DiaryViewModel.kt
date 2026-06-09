@@ -7,7 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.content.FileProvider
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.diary.app.data.*
 import com.google.gson.Gson
@@ -21,11 +21,11 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-class DiaryViewModel(application: Application) : ViewModel() {
+class DiaryViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = DiaryRepository(application)
-    private val prefs: SharedPreferences = application.getSharedPreferences("diary_prefs", android.content.Context.MODE_PRIVATE)
-    private val appContext = application.applicationContext
+    private val repository = DiaryRepository(getApplication())
+    private val prefs: SharedPreferences = getApplication<Application>().getSharedPreferences("diary_prefs", Context.MODE_PRIVATE)
+    private val appContext = getApplication<Application>().applicationContext
 
     val allEntries: Flow<List<DiaryEntry>> = repository.allEntries
 
