@@ -344,66 +344,67 @@ class DiaryViewModel(context: Context) : ViewModel() {
 
     // ===================== 全量备份 =====================
 
-    fun startBackup() = viewModelScope.launch(Dispatchers.IO) {
+    fun startBackup() = viewModelScope.launch {
         try {
             val settings = loadBackupSettings()
             if (settings.gitlabToken.isEmpty()) {
-                _backupState.postValue(BackupState.Error("Please enter Personal Access Token"))
+                _backupState.value = BackupState.Error("Please enter Personal Access Token")
                 return@launch
             }
 
-            _backupState.postValue(BackupState.BackingUp("Creating/checking repository..."))
-            createGitLabProject(settings)
+            _backupState.value = BackupState.BackingUp("Creating/checking repository...")
+            withContext(Dispatchers.IO) {
+                createGitLabProject(settings)
 
-            _backupState.postValue(BackupState.BackingUp("Exporting diary entries..."))
-            val entries = repository.getAllEntriesSync()
+                _backupState.value = BackupState.BackingUp("Exporting diary entries...")
+                val entries = repository.getAllEntriesSync()
 
-            val files = mutableMapOf<String, String>()
+                val files = mutableMapOf<String, String>()
 
-            // README index
-            val indexMd = buildString {
-                append("# Diary Backup\n\n")
-                append("> Generated: ${DateTime().toString("yyyy-MM-dd HH:mm")}\n\n")
-                append("## Entries\n\n")
-                entries.forEach { entry ->
-                    val date = DateTime(entry.createdAt).toString("yyyy-MM-dd")
-                    val title = entry.title.ifEmpty { "Untitled" }
-                    val file = "${date}_${title.replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "").replace(" ", "_").take(50)}.md"
-                    append("- [$title](entries/$file) ($date)\n")
+                val indexMd = buildString {
+                    append("# Diary Backup\n\n")
+                    append("> Generated: ${DateTime().toString("yyyy-MM-dd HH:mm")}\n\n")
+                    append("## Entries\n\n")
+                    entries.forEach { entry ->
+                        val date = DateTime(entry.createdAt).toString("yyyy-MM-dd")
+                        val title = entry.title.ifEmpty { "Untitled" }
+                        val file = "${date}_${title.replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "").replace(" ", "_").take(50)}.md"
+                        append("- [$title](entries/$file) ($date)\n")
+                    }
                 }
-            }
-            files["README.md"] = indexMd
+                files["README.md"] = indexMd
 
-            entries.forEach { entry ->
-                val md = entryToMarkdown(entry)
-                val fileName = "${DateTime(entry.createdAt).toString("yyyy-MM-dd")}_${
-                    entry.title.ifEmpty { "Untitled" }
-                        .replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "")
-                        .replace(" ", "_")
-                        .take(50)
-                }.md"
-                files["entries/$fileName"] = md
-            }
+                entries.forEach { entry ->
+                    val md = entryToMarkdown(entry)
+                    val fileName = "${DateTime(entry.createdAt).toString("yyyy-MM-dd")}_${
+                        entry.title.ifEmpty { "Untitled" }
+                            .replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "")
+                            .replace(" ", "_")
+                            .take(50)
+                    }.md"
+                    files["entries/$fileName"] = md
+                }
 
-            _backupState.postValue(BackupState.BackingUp("Uploading ${files.size} files to GitLab..."))
-            val success = commitFilesToGitLab(
-                settings,
-                files,
-                "Full backup: ${DateTime().toString("yyyy-MM-dd HH:mm")} (${entries.size} entries)"
-            )
+                _backupState.value = BackupState.BackingUp("Uploading ${files.size} files to GitLab...")
+                val success = commitFilesToGitLab(
+                    settings,
+                    files,
+                    "Full backup: ${DateTime().toString("yyyy-MM-dd HH:mm")} (${entries.size} entries)"
+                )
 
-            if (success) {
-                _backupState.postValue(BackupState.Success(
-                    "Backup successful!\n${entries.size} entries backed up to ${settings.gitlabUrl}/root/${settings.repoName}"
-                ))
-            } else {
-                _backupState.postValue(BackupState.Error(
-                    "Upload failed. Please check:\n1. Repository exists\n2. Token has write_repository permission\n3. main branch exists"
-                ))
+                if (success) {
+                    _backupState.value = BackupState.Success(
+                        "Backup successful!\n${entries.size} entries backed up to ${settings.gitlabUrl}/root/${settings.repoName}"
+                    )
+                } else {
+                    _backupState.value = BackupState.Error(
+                        "Upload failed. Check: 1) repo exists 2) token has write access 3) main branch exists"
+                    )
+                }
             }
         } catch (e: Exception) {
             Log.e("DiaryViewModel", "Backup failed", e)
-            _backupState.postValue(BackupState.Error("Backup failed: ${e.message}"))
+            _backupState.value = BackupState.Error("Backup failed: ${e.message}")
         }
     }
 
