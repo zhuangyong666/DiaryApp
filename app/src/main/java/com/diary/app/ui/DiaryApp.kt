@@ -4,9 +4,8 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -26,15 +25,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavType
+import androidx.navigation.compose.*
+import androidx.navigation.navArgument
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.diary.app.data.*
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import org.joda.time.DateTime
 
-// ===================== App 主题 =====================
+// ===================== App Theme =====================
 
 @Composable
 fun DiaryAppTheme(
@@ -60,7 +63,7 @@ fun DiaryAppTheme(
     )
 }
 
-// ===================== 导航 =====================
+// ===================== Navigation =====================
 
 sealed class Screen(val route: String) {
     object List : Screen("list")
@@ -76,12 +79,12 @@ sealed class Screen(val route: String) {
 fun DiaryNavHost(
     viewModel: DiaryViewModel = viewModel()
 ) {
-    val navController = androidx.navigation.compose.rememberNavController()
-    androidx.navigation.compose.NavHost(
+    val navController = rememberNavController()
+    NavHost(
         navController = navController,
         startDestination = Screen.List.route
     ) {
-        androidx.navigation.compose.composable(Screen.List.route) {
+        composable(Screen.List.route) {
             DiaryListScreen(
                 viewModel = viewModel,
                 onNewEntry = {
@@ -94,7 +97,7 @@ fun DiaryNavHost(
                 onBackup = { navController.navigate(Screen.Backup.route) }
             )
         }
-        androidx.navigation.compose.composable(Screen.Edit.route) {
+        composable(Screen.Edit.route) {
             DiaryEditScreen(
                 viewModel = viewModel,
                 onNavigateBack = {
@@ -103,10 +106,10 @@ fun DiaryNavHost(
                 }
             )
         }
-        androidx.navigation.compose.composable(
+        composable(
             route = Screen.Detail.route,
-            arguments = listOf(androidx.navigation.navArgument("entryId") {
-                type = androidx.navigation.NavType.LongType
+            arguments = listOf(navArgument("entryId") {
+                type = NavType.LongType
             })
         ) { backStackEntry ->
             val entryId = backStackEntry.arguments?.getLong("entryId") ?: 0L
@@ -117,7 +120,7 @@ fun DiaryNavHost(
                 onEdit = { navController.navigate(Screen.Edit.route) }
             )
         }
-        androidx.navigation.compose.composable(Screen.Backup.route) {
+        composable(Screen.Backup.route) {
             BackupScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
@@ -126,7 +129,7 @@ fun DiaryNavHost(
     }
 }
 
-// ===================== 日记列表页 =====================
+// ===================== Diary List Screen =====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,7 +163,7 @@ fun DiaryListScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("搜索日记...") },
+                            placeholder = { Text("Search...") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -169,29 +172,26 @@ fun DiaryListScreen(
                             )
                         )
                     } else {
-                        Text("📔 我的日记", fontSize = 22.sp)
+                        Text("My Diary", fontSize = 22.sp)
                     }
                 },
                 actions = {
                     if (showSearch) {
-                        IconButton(onClick = {
-                            showSearch = false
-                            searchQuery = ""
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "关闭搜索")
+                        IconButton(onClick = { showSearch = false; searchQuery = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
                         }
                     } else {
                         IconButton(onClick = { showSearch = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "搜索")
+                            Icon(Icons.Default.Search, contentDescription = "Search")
                         }
                         IconButton(onClick = { showFavoritesOnly = !showFavoritesOnly }) {
                             Icon(
                                 if (showFavoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                contentDescription = "收藏"
+                                contentDescription = "Favorites"
                             )
                         }
                         IconButton(onClick = onBackup) {
-                            Icon(Icons.Default.CloudUpload, contentDescription = "备份")
+                            Icon(Icons.Default.CloudUpload, contentDescription = "Backup")
                         }
                     }
                 },
@@ -202,44 +202,29 @@ fun DiaryListScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onNewEntry) {
-                Icon(Icons.Default.Add, contentDescription = "新建日记")
+                Icon(Icons.Default.Add, contentDescription = "New")
             }
         }
     ) { padding ->
         if (displayedEntries.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📝", fontSize = 64.sp)
-                    Text(
-                        if (showFavoritesOnly) "还没有收藏的日记" else "还没有日记",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
-                    Text(
-                        "点击 + 开始写第一篇日记吧！",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("No entries yet", style = MaterialTheme.typography.bodyLarge)
+                    Text("Tap + to start writing", style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(displayedEntries, key = { it.id }) { entry ->
-                    DiaryEntryCard(
-                        entry = entry,
-                        onClick = { onEntryClick(entry) }
-                    )
+                    DiaryEntryCard(entry = entry, onClick = { onEntryClick(entry) })
                 }
             }
         }
@@ -252,9 +237,7 @@ fun DiaryEntryCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -264,21 +247,16 @@ fun DiaryEntryCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (entry.title.isEmpty()) "无标题" else entry.title,
+                    text = if (entry.title.isEmpty()) "Untitled" else entry.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
                 if (entry.isFavorite) {
-                    Icon(
-                        Icons.Default.Favorite,
-                        contentDescription = null,
-                        tint = androidx.compose.ui.graphics.Color(0xFFFF5722),
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Default.Favorite, contentDescription = null,
+                        tint = androidx.compose.ui.graphics.Color(0xFFFF5722), modifier = Modifier.size(20.dp))
                 }
             }
-
             if (entry.content.isNotEmpty()) {
                 Text(
                     text = entry.content,
@@ -288,11 +266,8 @@ fun DiaryEntryCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -302,13 +277,12 @@ fun DiaryEntryCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (entry.attachments.isNotEmpty()) {
-                    Text("📷 ${entry.attachments.size}", style = MaterialTheme.typography.labelSmall)
+                    Text("${entry.attachments.size}", style = MaterialTheme.typography.labelSmall)
                 }
                 if (entry.location != null) {
-                    Text("📍", style = MaterialTheme.typography.labelSmall)
+                    Text("Location", style = MaterialTheme.typography.labelSmall)
                 }
             }
-
             if (entry.attachments.isNotEmpty()) {
                 LazyRow(
                     modifier = Modifier.padding(top = 8.dp),
@@ -321,9 +295,7 @@ fun DiaryEntryCard(
                                 .crossfade(true)
                                 .build(),
                             contentDescription = null,
-                            modifier = Modifier
-                                .size(64.dp)
-                                .padding(2.dp)
+                            modifier = Modifier.size(64.dp).padding(2.dp)
                         )
                     }
                 }
@@ -332,7 +304,7 @@ fun DiaryEntryCard(
     }
 }
 
-// ===================== 日记编辑页 =====================
+// ===================== Diary Edit Screen =====================
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -348,7 +320,6 @@ fun DiaryEditScreen(
     var attachments by remember { mutableStateOf(editEntry?.attachments ?: emptyList()) }
     var location by remember { mutableStateOf(editEntry?.location) }
 
-    // 同步 editEntry 变化
     LaunchedEffect(editEntry) {
         title = editEntry?.title ?: ""
         content = editEntry?.content ?: ""
@@ -356,36 +327,23 @@ fun DiaryEditScreen(
         location = editEntry?.location
     }
 
-    // 监听 attachments 变化
     val currentEdit by viewModel.editEntry.collectAsStateWithLifecycle()
     LaunchedEffect(currentEdit?.attachments?.size) {
-        currentEdit?.let {
-            attachments = it.attachments
-        }
+        currentEdit?.let { attachments = it.attachments }
     }
 
     val isEdit = editEntry != null
-
-    // 位置权限
     val locationPermission = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
 
-    // 保存函数
     val saveDiary = {
         val entry = if (isEdit) {
             editEntry!!.copy(
-                title = title,
-                content = content,
-                attachments = attachments,
-                location = location,
+                title = title, content = content,
+                attachments = attachments, location = location,
                 updatedAt = System.currentTimeMillis()
             )
         } else {
-            DiaryEntry(
-                title = title,
-                content = content,
-                attachments = attachments,
-                location = location
-            )
+            DiaryEntry(title = title, content = content, attachments = attachments, location = location)
         }
         if (isEdit) viewModel.updateEntry(entry) else viewModel.insertEntry(entry)
         onNavigateBack()
@@ -394,51 +352,36 @@ fun DiaryEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEdit) "编辑日记" else "新建日记") },
+                title = { Text(if (isEdit) "Edit Diary" else "New Diary") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     IconButton(onClick = saveDiary) {
-                        Icon(Icons.Default.Save, contentDescription = "保存")
+                        Icon(Icons.Default.Save, contentDescription = "Save")
                     }
                 }
             )
         }
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 标题输入
             OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                placeholder = { Text("标题（可选）") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                value = title, onValueChange = { title = it },
+                placeholder = { Text("Title (optional)") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true
             )
-
-            // 内容输入
             OutlinedTextField(
-                value = content,
-                onValueChange = { content = it },
-                placeholder = { Text("今天发生了什么？") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 200.dp),
-                minLines = 5
+                value = content, onValueChange = { content = it },
+                placeholder = { Text("What happened today?") },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp), minLines = 5
             )
-
-            // 媒体附件区域
             if (attachments.isNotEmpty()) {
-                Text("📎 附件 (${attachments.size})", fontWeight = FontWeight.Bold)
+                Text("Attachments (${attachments.size})", fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(attachments) { attachment ->
                         Box {
@@ -451,105 +394,56 @@ fun DiaryEditScreen(
                                 modifier = Modifier.size(100.dp)
                             )
                             IconButton(
-                                onClick = {
-                                    val newAttachments = attachments.filter { it.uri != attachment.uri }
-                                    attachments = newAttachments
-                                },
+                                onClick = { attachments = attachments.filter { it.uri != attachment.uri } },
                                 modifier = Modifier.align(Alignment.TopEnd)
                             ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "删除",
-                                    tint = androidx.compose.ui.graphics.Color.Red
-                                )
+                                Icon(Icons.Default.Close, contentDescription = "Remove",
+                                    tint = androidx.compose.ui.graphics.Color.Red)
                             }
                         }
                     }
                 }
             }
-
-            // 位置信息
             if (location != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Card(modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                    Row(modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("📍 位置", fontWeight = FontWeight.Bold)
-                            Text(
-                                "Lat: ${location!!.latitude}, Lng: ${location!!.longitude}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            Text("Location", fontWeight = FontWeight.Bold)
+                            Text("Lat: ${location!!.latitude}, Lng: ${location!!.longitude}",
+                                style = MaterialTheme.typography.bodySmall)
                             if (location!!.address != null) {
                                 Text(location!!.address!!, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         IconButton(onClick = { location = null }) {
-                            Icon(Icons.Default.Close, contentDescription = "移除位置")
+                            Icon(Icons.Default.Close, contentDescription = "Remove")
                         }
                     }
                 }
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
-            // 操作按钮行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 拍照
-                OutlinedButton(
-                    onClick = { viewModel.triggerCapturePhoto() },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("📷 拍照")
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = { viewModel.triggerCapturePhoto() }, modifier = Modifier.weight(1f)) {
+                    Text("Take Photo")
                 }
-
-                // 录像
-                OutlinedButton(
-                    onClick = { viewModel.triggerCaptureVideo() },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("🎬 录像")
+                OutlinedButton(onClick = { viewModel.triggerCaptureVideo() }, modifier = Modifier.weight(1f)) {
+                    Text("Record Video")
                 }
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 选择图片
-                OutlinedButton(
-                    onClick = { viewModel.triggerPickImageAction() },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("🖼️ 图片")
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = { viewModel.triggerPickImageAction() }, modifier = Modifier.weight(1f)) {
+                    Text("Pick Image")
                 }
-
-                // 选择视频
-                OutlinedButton(
-                    onClick = { viewModel.triggerPickVideoAction() },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("🎥 视频")
+                OutlinedButton(onClick = { viewModel.triggerPickVideoAction() }, modifier = Modifier.weight(1f)) {
+                    Text("Pick Video")
                 }
             }
-
-            // 获取位置按钮
             Button(
                 onClick = {
                     if (locationPermission.status.isGranted) {
-                        viewModel.getCurrentLocation(context) { loc ->
-                            location = loc
-                        }
+                        viewModel.getCurrentLocation(context) { loc -> location = loc }
                     } else {
                         locationPermission.launchPermissionRequest()
                     }
@@ -558,13 +452,13 @@ fun DiaryEditScreen(
             ) {
                 Icon(Icons.Default.LocationOn, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("📍 获取当前位置")
+                Text("Get Current Location")
             }
         }
     }
 }
 
-// ===================== 日记详情页 =====================
+// ===================== Diary Detail Screen =====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -582,10 +476,7 @@ fun DiaryDetailScreen(
     }
 
     if (entry == null) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
         return
@@ -596,62 +487,55 @@ fun DiaryDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(e.title.ifEmpty { "日记详情" }) },
+                title = { Text(e.title.ifEmpty { "Diary Detail" }) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        viewModel.setEditEntry(e)
-                        onEdit()
-                    }) {
-                        Icon(Icons.Default.Edit, contentDescription = "编辑")
+                    IconButton(onClick = { viewModel.setEditEntry(e); onEdit() }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit")
                     }
-                    IconButton(onClick = {
-                        viewModel.toggleFavorite(e)
-                        entry = e.copy(isFavorite = !e.isFavorite)
-                    }) {
+                    IconButton(onClick = { viewModel.toggleFavorite(e); entry = e.copy(isFavorite = !e.isFavorite) }) {
                         Icon(
                             if (e.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "收藏",
-                            tint = if (e.isFavorite) androidx.compose.ui.graphics.Color(0xFFFF5722)
-                            else MaterialTheme.colorScheme.onSurface
+                            contentDescription = "Favorite",
+                            tint = if (e.isFavorite) androidx.compose.ui.graphics.Color(0xFFFF5722) else MaterialTheme.colorScheme.onSurface
                         )
                     }
                     var showDeleteDialog by remember { mutableStateOf(false) }
                     var showBackupDialog by remember { mutableStateOf(false) }
                     IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "删除")
+                        Icon(Icons.Default.Delete, contentDescription = "Delete")
                     }
                     IconButton(onClick = { showBackupDialog = true }) {
-                        Icon(Icons.Default.CloudUpload, contentDescription = "备份到GitLab")
+                        Icon(Icons.Default.CloudUpload, contentDescription = "Backup to GitLab")
                     }
                     if (showBackupDialog) {
                         val singleBackup by viewModel.singleBackupState.collectAsStateWithLifecycle()
                         AlertDialog(
                             onDismissRequest = { if (singleBackup !is BackupState.BackingUp) showBackupDialog = false },
-                            title = { Text("备份到 GitLab") },
+                            title = { Text("Backup to GitLab") },
                             text = {
                                 Column {
-                                    Text("将这篇日记备份为 Markdown 文件到 GitLab 仓库。")
+                                    Text("Backup this entry as a Markdown file to your GitLab repository.")
                                     when (singleBackup) {
                                         is BackupState.BackingUp -> {
                                             Spacer(Modifier.height(8.dp))
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                                 Spacer(Modifier.width(8.dp))
-                                                Text("正在备份...")
+                                                Text("Backing up...")
                                             }
                                         }
                                         is BackupState.Success -> {
                                             Spacer(Modifier.height(8.dp))
-                                            Text("✅ 备份成功！", color = MaterialTheme.colorScheme.primary)
+                                            Text("Backup successful!", color = MaterialTheme.colorScheme.primary)
                                         }
                                         is BackupState.Error -> {
                                             Spacer(Modifier.height(8.dp))
-                                            Text("❌ ${(singleBackup as BackupState.Error).message}", color = MaterialTheme.colorScheme.error)
+                                            Text((singleBackup as BackupState.Error).message, color = MaterialTheme.colorScheme.error)
                                         }
                                         else -> {}
                                     }
@@ -669,18 +553,14 @@ fun DiaryDetailScreen(
                                             }
                                         }
                                     ) {
-                                        if (singleBackup is BackupState.Success) Text("关闭")
-                                        else Text("确认备份")
+                                        if (singleBackup is BackupState.Success) Text("Close") else Text("Backup")
                                     }
                                 }
                             },
                             dismissButton = {
                                 if (singleBackup !is BackupState.BackingUp) {
-                                    TextButton(onClick = {
-                                        showBackupDialog = false
-                                        viewModel.clearSingleBackupState()
-                                    }) {
-                                        Text("取消")
+                                    TextButton(onClick = { showBackupDialog = false; viewModel.clearSingleBackupState() }) {
+                                        Text("Cancel")
                                     }
                                 }
                             }
@@ -689,21 +569,19 @@ fun DiaryDetailScreen(
                     if (showDeleteDialog) {
                         AlertDialog(
                             onDismissRequest = { showDeleteDialog = false },
-                            title = { Text("删除日记") },
-                            text = { Text("确定要删除这篇日记吗？此操作不可撤销。") },
+                            title = { Text("Delete Entry") },
+                            text = { Text("Are you sure? This cannot be undone.") },
                             confirmButton = {
                                 TextButton(onClick = {
                                     viewModel.deleteEntry(e)
                                     showDeleteDialog = false
                                     onNavigateBack()
                                 }) {
-                                    Text("删除", color = MaterialTheme.colorScheme.error)
+                                    Text("Delete", color = MaterialTheme.colorScheme.error)
                                 }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showDeleteDialog = false }) {
-                                    Text("取消")
-                                }
+                                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
                             }
                         )
                     }
@@ -712,53 +590,31 @@ fun DiaryDetailScreen(
         }
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 时间信息
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
+                Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceAround) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📅 创建", style = MaterialTheme.typography.labelMedium)
-                        Text(
-                            DateTime(e.createdAt).toString("yyyy-MM-dd HH:mm"),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Text("Created", style = MaterialTheme.typography.labelMedium)
+                        Text(DateTime(e.createdAt).toString("yyyy-MM-dd HH:mm"),
+                            style = MaterialTheme.typography.bodyMedium)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("✏️ 修改", style = MaterialTheme.typography.labelMedium)
-                        Text(
-                            DateTime(e.updatedAt).toString("yyyy-MM-dd HH:mm"),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Text("Modified", style = MaterialTheme.typography.labelMedium)
+                        Text(DateTime(e.updatedAt).toString("yyyy-MM-dd HH:mm"),
+                            style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
-
-            // 内容
             if (e.content.isNotEmpty()) {
-                Text(
-                    text = e.content,
-                    style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 24.sp
-                )
+                Text(text = e.content, style = MaterialTheme.typography.bodyLarge, lineHeight = 24.sp)
             }
-
-            // 附件
             if (e.attachments.isNotEmpty()) {
-                Text("📎 附件 (${e.attachments.size})", fontWeight = FontWeight.Bold)
+                Text("Attachments (${e.attachments.size})", fontWeight = FontWeight.Bold)
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(e.attachments) { attachment ->
                         Card(modifier = Modifier.fillMaxWidth()) {
@@ -766,81 +622,55 @@ fun DiaryDetailScreen(
                                 when (attachment.type) {
                                     AttachmentType.IMAGE -> {
                                         AsyncImage(
-                                            model = ImageRequest.Builder(context)
-                                                .data(attachment.uri)
-                                                .crossfade(true)
-                                                .build(),
+                                            model = ImageRequest.Builder(context).data(attachment.uri)
+                                                .crossfade(true).build(),
                                             contentDescription = attachment.fileName,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(250.dp)
+                                            modifier = Modifier.fillMaxWidth().height(250.dp)
                                         )
                                     }
                                     AttachmentType.VIDEO -> {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(200.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
+                                        Box(modifier = Modifier.fillMaxWidth().height(200.dp),
+                                            contentAlignment = Alignment.Center) {
                                             AsyncImage(
                                                 model = ImageRequest.Builder(context)
                                                     .data(attachment.thumbnailUri ?: attachment.uri)
-                                                    .crossfade(true)
-                                                    .build(),
+                                                    .crossfade(true).build(),
                                                 contentDescription = attachment.fileName,
                                                 modifier = Modifier.fillMaxSize()
                                             )
-                                            Icon(
-                                                Icons.Default.PlayCircle,
-                                                contentDescription = "播放",
+                                            Icon(Icons.Default.PlayCircle, contentDescription = "Play",
                                                 tint = androidx.compose.ui.graphics.Color.White,
-                                                modifier = Modifier.size(64.dp)
-                                            )
+                                                modifier = Modifier.size(64.dp))
                                         }
                                     }
                                 }
                                 if (attachment.fileName.isNotEmpty()) {
-                                    Text(
-                                        attachment.fileName,
+                                    Text(attachment.fileName,
                                         style = MaterialTheme.typography.labelMedium,
-                                        modifier = Modifier.padding(8.dp)
-                                    )
+                                        modifier = Modifier.padding(8.dp))
                                 }
                             }
                         }
                     }
                 }
             }
-
-            // 位置信息
             if (e.location != null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("📍 位置", fontWeight = FontWeight.Bold)
-                        Text(
-                            "纬度: ${e.location!!.latitude}, 经度: ${e.location!!.longitude}",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Text("Location", fontWeight = FontWeight.Bold)
+                        Text("Lat: ${e.location!!.latitude}, Lng: ${e.location!!.longitude}",
+                            style = MaterialTheme.typography.bodyMedium)
                         if (e.location!!.address != null) {
-                            Text(
-                                e.location!!.address!!,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            Text(e.location!!.address!!, style = MaterialTheme.typography.bodyMedium)
                         }
                         TextButton(onClick = {
-                            val uri = Uri.parse(
-                                "geo:${e.location!!.latitude},${e.location!!.longitude}"
-                            )
-                            val intent = Intent(Intent.ACTION_VIEW, uri)
-                            context.startActivity(intent)
+                            val uri = Uri.parse("geo:${e.location!!.latitude},${e.location!!.longitude}")
+                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                         }) {
-                            Text("🗺️ 在地图中查看")
+                            Text("View on Map")
                         }
                     }
                 }
@@ -849,7 +679,7 @@ fun DiaryDetailScreen(
     }
 }
 
-// ===================== 备份页面 =====================
+// ===================== Backup Screen =====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -874,80 +704,56 @@ fun BackupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("☁️ GitLab 备份") },
+                title = { Text("GitLab Backup") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         }
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 使用说明卡片
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("💡 使用说明", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("How to use", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "1. 输入你的 GitLab 实例 URL（如 https://gitlab.com）\n" +
-                        "2. 输入 Personal Access Token（需要 api + write_repository 权限）\n" +
-                        "3. 设置仓库名称\n" +
-                        "4. 点击「开始全量备份」即可自动创建仓库并推送\n" +
-                        "5. 每篇日记详情页可单独备份为 Markdown 文件",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp)
+                        "1. Enter your GitLab instance URL\n" +
+                        "2. Enter Personal Access Token (needs api + write_repository scope)\n" +
+                        "3. Set repository name\n" +
+                        "4. Tap 'Full Backup' to create repo and push all entries\n" +
+                        "5. Individual entries can be backed up from the detail view",
+                        style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             }
-
-            // 配置区域
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("⚙️ 备份配置", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-
+                    Text("Configuration", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     OutlinedTextField(
-                        value = gitlabUrl,
-                        onValueChange = { gitlabUrl = it },
-                        label = { Text("GitLab URL") },
-                        placeholder = { Text("https://gitlab.com") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        value = gitlabUrl, onValueChange = { gitlabUrl = it },
+                        label = { Text("GitLab URL") }, placeholder = { Text("https://gitlab.com") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
                     )
-
                     OutlinedTextField(
-                        value = gitlabToken,
-                        onValueChange = { gitlabToken = it },
-                        label = { Text("Personal Access Token") },
-                        placeholder = { Text("glpat-xxxxxxxxxxxx") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        value = gitlabToken, onValueChange = { gitlabToken = it },
+                        label = { Text("Personal Access Token") }, placeholder = { Text("glpat-xxxx") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
                     )
-
                     OutlinedTextField(
-                        value = repoName,
-                        onValueChange = { repoName = it },
-                        label = { Text("仓库名称") },
-                        placeholder = { Text("diary-backup") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        value = repoName, onValueChange = { repoName = it },
+                        label = { Text("Repository Name") }, placeholder = { Text("diary-backup") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
                     )
                 }
             }
-
-            // 全量备份按钮
             Button(
                 onClick = {
                     viewModel.saveBackupSettings(gitlabUrl, gitlabToken, repoName)
@@ -957,167 +763,96 @@ fun BackupScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (backupState is BackupState.BackingUp) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary)
                 } else {
                     Icon(Icons.Default.CloudUpload, contentDescription = null)
                 }
                 Spacer(Modifier.width(8.dp))
-                Text("📦 全量备份到 GitLab")
+                Text("Full Backup to GitLab")
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
-            // 备份状态区域 - 独立卡片
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 全量备份状态
                 when (val state = backupState) {
                     is BackupState.Idle -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text("📋", fontSize = 24.sp)
-                                Column {
-                                    Text("就绪", fontWeight = FontWeight.Bold)
-                                    Text("配置完成后点击全量备份", style = MaterialTheme.typography.bodySmall)
-                                }
+                        Card(modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Ready", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                     is BackupState.BackingUp -> {
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("⏳", fontSize = 24.sp)
-                                    Text(state.message, fontWeight = FontWeight.Bold)
-                                }
-                                LinearProgressIndicator(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 8.dp)
-                                )
+                                Text(state.message, fontWeight = FontWeight.Bold)
+                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
                             }
                         }
                     }
                     is BackupState.Success -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            )
-                        ) {
+                        Card(modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("✅", fontSize = 24.sp)
-                                    Text("备份成功！", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                }
-                                Text(
-                                    state.message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
+                                Text("Backup successful!", fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                Text(state.message, style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 4.dp))
                             }
                         }
                     }
                     is BackupState.Error -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
+                        Card(modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("❌", fontSize = 24.sp)
-                                    Text("备份失败", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                                }
-                                Text(
-                                    state.message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
+                                Text("Backup failed", fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onErrorContainer)
+                                Text(state.message, style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 4.dp))
                             }
                         }
                     }
                 }
-
-                // 单篇备份状态
                 when (val sState = singleBackupState) {
                     is BackupState.BackingUp -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text("⏳", fontSize = 24.sp)
+                        Card(modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(sState.message, style = MaterialTheme.typography.bodyMedium)
                             }
                         }
                     }
                     is BackupState.Success -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text("✅", fontSize = 24.sp)
+                        Card(modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(sState.message, fontWeight = FontWeight.Bold)
                                 }
                                 IconButton(onClick = { viewModel.clearSingleBackupState() }) {
-                                    Icon(Icons.Default.Close, contentDescription = "清除")
+                                    Icon(Icons.Default.Close, contentDescription = "Dismiss")
                                 }
                             }
                         }
                     }
                     is BackupState.Error -> {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text("❌", fontSize = 24.sp)
+                        Card(modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(sState.message, style = MaterialTheme.typography.bodySmall)
                                 }
                                 IconButton(onClick = { viewModel.clearSingleBackupState() }) {
-                                    Icon(Icons.Default.Close, contentDescription = "清除")
+                                    Icon(Icons.Default.Close, contentDescription = "Dismiss")
                                 }
                             }
                         }
                     }
-                    is BackupState.Idle -> {
-                        // 空闲时不显示
-                    }
+                    is BackupState.Idle -> {}
                 }
             }
         }

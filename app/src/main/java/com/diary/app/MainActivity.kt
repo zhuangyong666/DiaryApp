@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMediaRequest
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.diary.app.data.AttachmentType
@@ -18,7 +19,6 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var viewModel: DiaryViewModel
 
-    // 拍照
     private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
             viewModel.addMediaAttachmentFromPending(AttachmentType.IMAGE)
@@ -26,7 +26,6 @@ class MainActivity : ComponentActivity() {
         viewModel.setPendingMediaUri(null)
     }
 
-    // 录像
     private val takeVideoLauncher = registerForActivityResult(ActivityResultContracts.CaptureVideo()) { success ->
         if (success) {
             viewModel.addMediaAttachmentFromPending(AttachmentType.VIDEO)
@@ -34,22 +33,16 @@ class MainActivity : ComponentActivity() {
         viewModel.setPendingMediaUri(null)
     }
 
-    // 选择图片
     private val pickImageLauncher = registerForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        uri?.let {
-            viewModel.addMediaAttachment(it, AttachmentType.IMAGE)
-        }
+        uri?.let { viewModel.addMediaAttachment(it, AttachmentType.IMAGE) }
     }
 
-    // 选择视频
     private val pickVideoLauncher = registerForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        uri?.let {
-            viewModel.addMediaAttachment(it, AttachmentType.VIDEO)
-        }
+        uri?.let { viewModel.addMediaAttachment(it, AttachmentType.VIDEO) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
