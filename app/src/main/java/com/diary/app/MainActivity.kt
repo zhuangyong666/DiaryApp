@@ -2,6 +2,7 @@ package com.diary.app
 
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,49 +47,66 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d("DiaryApp", "MainActivity onCreate start")
+
+        try {
+            viewModel = viewModel()
+            Log.d("DiaryApp", "ViewModel created")
+        } catch (e: Exception) {
+            Log.e("DiaryApp", "Failed to create ViewModel", e)
+            e.printStackTrace()
+        }
 
         setContent {
-            viewModel = viewModel()
+            try {
+                Log.d("DiaryApp", "setContent called")
 
-            val triggerCamera by viewModel.triggerCamera.collectAsState()
-            val triggerVideo by viewModel.triggerVideo.collectAsState()
-            val triggerPickImage by viewModel.triggerPickImage.collectAsState()
-            val triggerPickVideo by viewModel.triggerPickVideo.collectAsState()
+                val triggerCamera by viewModel.triggerCamera.collectAsState()
+                val triggerVideo by viewModel.triggerVideo.collectAsState()
+                val triggerPickImage by viewModel.triggerPickImage.collectAsState()
+                val triggerPickVideo by viewModel.triggerPickVideo.collectAsState()
 
-            LaunchedEffect(triggerCamera) {
-                if (triggerCamera) {
-                    val uri = viewModel.createImageFileUri(this@MainActivity)
-                    viewModel.setPendingMediaUri(uri)
-                    viewModel.consumeCameraTrigger()
-                    uri?.let { takePictureLauncher.launch(it) }
+                LaunchedEffect(triggerCamera) {
+                    if (triggerCamera) {
+                        val uri = viewModel.createImageFileUri(this@MainActivity)
+                        viewModel.setPendingMediaUri(uri)
+                        viewModel.consumeCameraTrigger()
+                        uri?.let { takePictureLauncher.launch(it) }
+                    }
                 }
-            }
 
-            LaunchedEffect(triggerVideo) {
-                if (triggerVideo) {
-                    val uri = viewModel.createVideoFileUri(this@MainActivity)
-                    viewModel.setPendingMediaUri(uri)
-                    viewModel.consumeVideoTrigger()
-                    uri?.let { takeVideoLauncher.launch(it) }
+                LaunchedEffect(triggerVideo) {
+                    if (triggerVideo) {
+                        val uri = viewModel.createVideoFileUri(this@MainActivity)
+                        viewModel.setPendingMediaUri(uri)
+                        viewModel.consumeVideoTrigger()
+                        uri?.let { takeVideoLauncher.launch(it) }
+                    }
                 }
-            }
 
-            LaunchedEffect(triggerPickImage) {
-                if (triggerPickImage) {
-                    viewModel.consumePickImageTrigger()
-                    pickImageLauncher.launch("image/*")
+                LaunchedEffect(triggerPickImage) {
+                    if (triggerPickImage) {
+                        viewModel.consumePickImageTrigger()
+                        pickImageLauncher.launch("image/*")
+                    }
                 }
-            }
 
-            LaunchedEffect(triggerPickVideo) {
-                if (triggerPickVideo) {
-                    viewModel.consumePickVideoTrigger()
-                    pickVideoLauncher.launch("video/*")
+                LaunchedEffect(triggerPickVideo) {
+                    if (triggerPickVideo) {
+                        viewModel.consumePickVideoTrigger()
+                        pickVideoLauncher.launch("video/*")
+                    }
                 }
-            }
 
-            DiaryAppTheme {
-                DiaryNavHost(viewModel = viewModel)
+                Log.d("DiaryApp", "Rendering DiaryAppTheme")
+                DiaryAppTheme {
+                    DiaryNavHost(viewModel = viewModel)
+                }
+                Log.d("DiaryApp", "MainActivity onCreate complete")
+            } catch (e: Exception) {
+                Log.e("DiaryApp", "CRASH in setContent", e)
+                e.printStackTrace()
+                throw e
             }
         }
     }
