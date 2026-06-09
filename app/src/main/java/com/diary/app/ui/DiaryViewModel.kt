@@ -9,14 +9,12 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.diary.app.data.*
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.eclipse.jgit.api.Git
-import org.eclipse.jgit.transport.CredentialsProvider
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
-import org.eclipse.jgit.transport.URIish
 import org.joda.time.DateTime
 import java.io.File
 import java.net.HttpURLConnection
@@ -241,298 +239,210 @@ class DiaryViewModel(context: Context) : ViewModel() {
 
     fun entryToMarkdown(entry: DiaryEntry): String {
         val sb = StringBuilder()
-
-        // 标题
-        sb.append("# ${entry.title.ifEmpty { "无标题" }}\n\n")
-
-        // 时间信息
+        sb.append("# ${entry.title.ifEmpty { "Untitled" }}\n\n")
         val created = DateTime(entry.createdAt).toString("yyyy-MM-dd HH:mm")
         val updated = DateTime(entry.updatedAt).toString("yyyy-MM-dd HH:mm")
-        sb.append("> 📅 创建时间: $created\n")
-        sb.append("> ✏️ 更新时间: $updated\n\n")
-
-        // 位置
+        sb.append("> Created: $created\n")
+        sb.append("> Updated: $updated\n\n")
         if (entry.location != null) {
-            sb.append("## 📍 位置\n\n")
-            sb.append("- 纬度: ${entry.location.latitude}\n")
-            sb.append("- 经度: ${entry.location.longitude}\n")
+            sb.append("## Location\n\n")
+            sb.append("- Latitude: ${entry.location.latitude}\n")
+            sb.append("- Longitude: ${entry.location.longitude}\n")
             if (entry.location.address != null) {
-                sb.append("- 地址: ${entry.location.address}\n")
-            }
-            sb.append("- 地图链接: [查看地图](geo:${entry.location.latitude},${entry.location.longitude})\n\n")
-        }
-
-        // 正文
-        sb.append("## 📝 内容\n\n")
-        sb.append(entry.content)
-        sb.append("\n\n")
-
-        // 附件
-        if (entry.attachments.isNotEmpty()) {
-            sb.append("## 📎 附件 (${entry.attachments.size})\n\n")
-            entry.attachments.forEachIndexed { index, attachment ->
-                when (attachment.type) {
-                    AttachmentType.IMAGE -> {
-                        sb.append("${index + 1}. 📷 图片: `${attachment.fileName}`\n")
-                    }
-                    AttachmentType.VIDEO -> {
-                        sb.append("${index + 1}. 🎬 视频: `${attachment.fileName}`\n")
-                    }
-                }
+                sb.append("- Address: ${entry.location.address}\n")
             }
             sb.append("\n")
         }
-
-        if (entry.isFavorite) {
-            sb.append("---\n⭐ 已收藏\n")
+        sb.append("## Content\n\n")
+        sb.append(entry.content)
+        sb.append("\n\n")
+        if (entry.attachments.isNotEmpty()) {
+            sb.append("## Attachments (${entry.attachments.size})\n\n")
+            entry.attachments.forEachIndexed { index, attachment ->
+                val icon = if (attachment.type == AttachmentType.IMAGE) "📷" else "🎬"
+                sb.append("${index + 1}. $icon `${attachment.fileName}`\n")
+            }
+            sb.append("\n")
         }
-
+        if (entry.isFavorite) {
+            sb.append("---\n⭐ Favorited\n")
+        }
         return sb.toString()
     }
 
-    // ===================== GitLab API =====================
+    // ===================== GitLab HTTP API =====================
 
-    /**
-     * 通过 GitLab API 创建项目
-     */
-    private fun createGitLabProject(settings: BackupSettings): Int? {
-        return try {
-            val urlStr = "${settings.gitlabUrl.trimEnd('/')}/api/v4/projects"
-            val url = URL(urlStr)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
+    private fun gitlabRequest(
+        settings: BackupSettings,
+        path: String,
+        method: String = "GET",
+        body: String? = null
+    ): Pair<Int, String> {
+        val baseUrl = settings.gitlabUrl.trimEnd('/')
+        val url = URL("$baseUrl/api/v4$path")
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = method
+        conn.setRequestProperty("PRIVATE-TOKEN", settings.gitlabToken)
+        conn.setRequestProperty("Content-Type", "application/json")
+        if (body != null) {
             conn.doOutput = true
-            conn.doInput = true
-            conn.setRequestProperty("PRIVATE-TOKEN", settings.gitlabToken)
-            conn.setRequestProperty("Content-Type", "application/json")
-
-            val body = """{
-                "name": "${settings.repoName}",
-                "visibility": "private",
-                "description": "DiaryApp 日记备份 - ${DateTime().toString("yyyy-MM-dd")}"
-            }""".trimIndent()
-
-            conn.outputStream.use { it.write(body.toByteArray()) }
-
-            val code = conn.responseCode
-            Log.d("DiaryViewModel", "Create project response: $code")
-            if (code == 201) {
-                val response = conn.inputStream.bufferedReader().readText()
-                val gson = com.google.gson.Gson()
-                val json = gson.fromJson(response, com.google.gson.JsonObject::class.java)
-                json?.get("id")?.asInt
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        }
+        val code = conn.responseCode
+        val response = try {
+            if (code in 200..299) {
+                conn.inputStream.bufferedReader().readText()
             } else {
-                null
+                conn.errorStream?.bufferedReader()?.readText() ?: ""
             }
         } catch (e: Exception) {
-            Log.e("DiaryViewModel", "Failed to create project", e)
-            null
+            ""
         }
+        return code to response
     }
 
-    /**
-     * 通过 GitLab API 上传单个文件到仓库
-     */
-    fun uploadToGitLab(entry: DiaryEntry, settings: BackupSettings): Boolean {
-        return try {
-            val baseUrl = settings.gitlabUrl.trimEnd('/')
-            val encodedPath = java.net.URLEncoder.encode("root/${settings.repoName}", "UTF-8")
-            val fileName = entryToSafeFileName(entry)
-            val urlStr = "$baseUrl/api/v4/projects/$encodedPath/repository/files/$fileName"
-
-            val url = URL(urlStr)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.doOutput = true
-            conn.setRequestProperty("PRIVATE-TOKEN", settings.gitlabToken)
-            conn.setRequestProperty("Content-Type", "application/json")
-
-            val markdown = entryToMarkdown(entry)
-            val body = """{
-                "branch": "main",
-                "content": ${com.google.gson.Gson().toJson(markdown)},
-                "commit_message": "Backup diary: ${entry.title.ifEmpty { "无标题" }} (${DateTime(entry.createdAt).toString("yyyy-MM-dd HH:mm")})"
-            }""".trimIndent()
-
-            Log.d("DiaryViewModel", "Uploading to: $urlStr")
-            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-
-            val code = conn.responseCode
-            Log.d("DiaryViewModel", "Upload response: $code")
-            code == 201 || code == 200
-        } catch (e: Exception) {
-            Log.e("DiaryViewModel", "Upload failed", e)
-            false
-        }
+    private fun createGitLabProject(settings: BackupSettings): Boolean {
+        val body = """{
+            "name": "${settings.repoName}",
+            "visibility": "private",
+            "description": "DiaryApp backup - ${DateTime().toString("yyyy-MM-dd")}"
+        }""".trimIndent()
+        val (code, _) = gitlabRequest(settings, "/projects", "POST", body)
+        return code == 201 || code == 400 // 400 = already exists
     }
 
-    private fun entryToSafeFileName(entry: DiaryEntry): String {
-        val date = DateTime(entry.createdAt).toString("yyyy-MM-dd")
-        val title = entry.title.ifEmpty { "无标题" }
-            .replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "")
-            .replace(" ", "_")
-            .take(50)
-        return java.net.URLEncoder.encode("${date}_${title}.md", "UTF-8")
+    private fun commitFilesToGitLab(
+        settings: BackupSettings,
+        files: Map<String, String>,
+        commitMessage: String
+    ): Boolean {
+        val encodedPath = java.net.URLEncoder.encode("root/${settings.repoName}", "UTF-8")
+        val actions = files.map { (filePath, content) ->
+            JsonObject().apply {
+                addProperty("action", "create")
+                addProperty("file_path", filePath)
+                addProperty("content", content)
+            }
+        }
+        val gson = Gson()
+        val bodyObj = JsonObject().apply {
+            addProperty("branch", "main")
+            addProperty("commit_message", commitMessage)
+            add("actions", gson.toJsonTree(actions))
+        }
+        val body = gson.toJson(bodyObj)
+        val (code, resp) = gitlabRequest(
+            settings,
+            "/projects/$encodedPath/repository/commits",
+            "POST",
+            body
+        )
+        if (code in 200..299) return true
+        Log.e("DiaryViewModel", "Commit failed: $code $resp")
+        return false
     }
 
     // ===================== 全量备份 =====================
 
-    fun startBackup() = viewModelScope.launch {
+    fun startBackup() = viewModelScope.launch(Dispatchers.IO) {
         try {
             val settings = loadBackupSettings()
             if (settings.gitlabToken.isEmpty()) {
-                _backupState.value = BackupState.Error("请先填写 Personal Access Token")
-                return@launch
-            }
-            if (settings.gitlabUrl.isEmpty()) {
-                _backupState.value = BackupState.Error("请填写 GitLab URL")
+                _backupState.postValue(BackupState.Error("Please enter Personal Access Token"))
                 return@launch
             }
 
-            _backupState.value = BackupState.BackingUp("正在创建/检查 GitLab 仓库...")
+            _backupState.postValue(BackupState.BackingUp("Creating/checking repository..."))
+            createGitLabProject(settings)
 
-            // Step 1: 确保项目存在
-            val projectId = createGitLabProject(settings)
-            if (projectId != null) {
-                Log.d("DiaryViewModel", "Project created with ID: $projectId")
-            }
-
-            // Step 2: 导出所有日记为 Markdown + JSON
-            _backupState.value = BackupState.BackingUp("正在导出日记数据...")
+            _backupState.postValue(BackupState.BackingUp("Exporting diary entries..."))
             val entries = repository.getAllEntriesSync()
-            val backupDir = File(appContext.filesDir, "backup_repo")
-            if (!backupDir.exists()) backupDir.mkdirs()
 
-            // Markdown 目录
-            val mdDir = File(backupDir, "markdown")
-            if (!mdDir.exists()) mdDir.mkdirs()
+            val files = mutableMapOf<String, String>()
+
+            // README index
+            val indexMd = buildString {
+                append("# Diary Backup\n\n")
+                append("> Generated: ${DateTime().toString("yyyy-MM-dd HH:mm")}\n\n")
+                append("## Entries\n\n")
+                entries.forEach { entry ->
+                    val date = DateTime(entry.createdAt).toString("yyyy-MM-dd")
+                    val title = entry.title.ifEmpty { "Untitled" }
+                    val file = "${date}_${title.replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "").replace(" ", "_").take(50)}.md"
+                    append("- [$title](entries/$file) ($date)\n")
+                }
+            }
+            files["README.md"] = indexMd
 
             entries.forEach { entry ->
-                val mdContent = entryToMarkdown(entry)
+                val md = entryToMarkdown(entry)
                 val fileName = "${DateTime(entry.createdAt).toString("yyyy-MM-dd")}_${
-                    entry.title.ifEmpty { "无标题" }
+                    entry.title.ifEmpty { "Untitled" }
                         .replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "")
                         .replace(" ", "_")
                         .take(50)
                 }.md"
-                File(mdDir, fileName).writeText(mdContent)
+                files["entries/$fileName"] = md
             }
 
-            // JSON 备份
-            val json = com.google.gson.Gson().toJson(entries)
-            File(backupDir, "latest.json").writeText(json)
+            _backupState.postValue(BackupState.BackingUp("Uploading ${files.size} files to GitLab..."))
+            val success = commitFilesToGitLab(
+                settings,
+                files,
+                "Full backup: ${DateTime().toString("yyyy-MM-dd HH:mm")} (${entries.size} entries)"
+            )
 
-            // 索引文件
-            val indexMd = buildString {
-                append("# 📔 日记备份索引\n\n")
-                append("> 自动生成于 ${DateTime().toString("yyyy-MM-dd HH:mm")}\n\n")
-                append("## 日记列表\n\n")
-                append("| 日期 | 标题 | 附件 | 位置 |\n")
-                append("|------|------|------|------|\n")
-                entries.forEach { entry ->
-                    val date = DateTime(entry.createdAt).toString("yyyy-MM-dd")
-                    val title = entry.title.ifEmpty { "无标题" }
-                    val attachCount = entry.attachments.size
-                    val hasLocation = if (entry.location != null) "✅" else "-"
-                    val mdFile = "${date}_${title.replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "").replace(" ", "_").take(50)}.md"
-                    append("| $date | [$title](markdown/$mdFile) | $attachCount | $hasLocation |\n")
-                }
-                append("\n---\n*Generated by DiaryApp*")
-            }
-            File(backupDir, "README.md").writeText(indexMd)
-
-            // Step 3: Git 操作
-            _backupState.value = BackupState.BackingUp("正在提交数据 (${entries.size} 篇日记)...")
-            val git = if (File(backupDir, ".git").exists()) {
-                Git.open(backupDir)
+            if (success) {
+                _backupState.postValue(BackupState.Success(
+                    "Backup successful!\n${entries.size} entries backed up to ${settings.gitlabUrl}/root/${settings.repoName}"
+                ))
             } else {
-                Git.init().setDirectory(backupDir).call().also { g ->
-                    // 创建 main 分支
-                    g.checkout().setCreateBranch(true).setName("main").call()
-                }
+                _backupState.postValue(BackupState.Error(
+                    "Upload failed. Please check:\n1. Repository exists\n2. Token has write_repository permission\n3. main branch exists"
+                ))
             }
-
-            git.add().addFilepattern(".").call()
-            val status = git.status().call()
-            if (status.added.isNotEmpty() || status.changed.isNotEmpty() || status.modified.isNotEmpty()) {
-                val timestamp = DateTime().toString("yyyy-MM-dd_HH-mm-ss")
-                git.commit()
-                    .setMessage("Full backup: $timestamp\n\nTotal entries: ${entries.size}")
-                    .call()
-            }
-
-            // Step 4: 推送
-            _backupState.value = BackupState.BackingUp("正在推送到 GitLab...")
-            val host = settings.gitlabUrl
-                .trimEnd('/')
-                .replace("https://", "")
-                .replace("http://", "")
-            val gitUrl = "https://oauth2:${settings.gitlabToken}@$host/root/${settings.repoName}.git"
-
-            val remote = "origin"
-
-            // Use StoredConfig to set remote URL (works in all JGit versions)
-            val config = git.repository.config
-            config.setString("remote", remote, "url", gitUrl)
-            config.setString("remote", remote, "fetch", "+refs/heads/*:refs/remotes/$remote/*")
-            config.save()
-
-            val credentials: CredentialsProvider = UsernamePasswordCredentialsProvider(
-                "oauth2", settings.gitlabToken
-            )
-
-            git.push()
-                .setRemote(remote)
-                .setCredentialsProvider(credentials)
-                .setForce(true)
-                .call()
-
-            _backupState.value = BackupState.Success(
-                "✅ 全量备份成功！\n" +
-                "📅 时间: ${DateTime().toString("yyyy-MM-dd HH:mm")}\n" +
-                "📝 日记: ${entries.size} 篇\n" +
-                "🔗 仓库: ${settings.gitlabUrl}/root/${settings.repoName}"
-            )
-
         } catch (e: Exception) {
             Log.e("DiaryViewModel", "Backup failed", e)
-            _backupState.value = BackupState.Error(
-                "❌ 备份失败: ${e.message ?: "未知错误"}\n\n" +
-                "请检查:\n" +
-                "1. GitLab URL 是否正确\n" +
-                "2. Token 是否有效（需要 api + write_repository 权限）\n" +
-                "3. 网络连接是否正常\n" +
-                "4. 仓库是否已存在或 Token 是否有创建权限"
-            )
+            _backupState.postValue(BackupState.Error("Backup failed: ${e.message}"))
         }
     }
 
     // ===================== 单篇备份 =====================
 
-    fun backupSingleEntry(entry: DiaryEntry) = viewModelScope.launch {
+    fun backupSingleEntry(entry: DiaryEntry) = viewModelScope.launch(Dispatchers.IO) {
         try {
             val settings = loadBackupSettings()
             if (settings.gitlabToken.isEmpty()) {
-                _singleBackupState.value = BackupState.Error("请先在备份页面配置 Token")
+                _singleBackupState.postValue(BackupState.Error("Please configure Token in backup settings first"))
                 return@launch
             }
 
-            _singleBackupState.value = BackupState.BackingUp("正在备份「${entry.title.ifEmpty { "无标题" }}」...")
+            _singleBackupState.postValue(BackupState.BackingUp("Backing up \"${entry.title.ifEmpty { "Untitled" }}\"..."))
 
-            val success = uploadToGitLab(entry, settings)
+            val fileName = "${DateTime(entry.createdAt).toString("yyyy-MM-dd")}_${
+                entry.title.ifEmpty { "Untitled" }
+                    .replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "")
+                    .replace(" ", "_")
+                    .take(50)
+            }.md"
+            val md = entryToMarkdown(entry)
+
+            val success = commitFilesToGitLab(
+                settings,
+                mapOf("entries/$fileName" to md),
+                "Backup: ${entry.title.ifEmpty { "Untitled" }} (${DateTime(entry.createdAt).toString("yyyy-MM-dd HH:mm")})"
+            )
 
             if (success) {
-                _singleBackupState.value = BackupState.Success(
-                    "✅ 「${entry.title.ifEmpty { "无标题" }}」已备份到 GitLab"
-                )
+                _singleBackupState.postValue(BackupState.Success(
+                    "✅ \"${entry.title.ifEmpty { "Untitled" }}\" backed up to GitLab"
+                ))
             } else {
-                _singleBackupState.value = BackupState.Error(
-                    "❌ 备份失败，请检查仓库是否存在"
-                )
+                _singleBackupState.postValue(BackupState.Error("Upload failed. Check if repository exists."))
             }
         } catch (e: Exception) {
             Log.e("DiaryViewModel", "Single backup failed", e)
-            _singleBackupState.value = BackupState.Error("❌ 备份失败: ${e.message}")
+            _singleBackupState.postValue(BackupState.Error("Backup failed: ${e.message}"))
         }
     }
 

@@ -81,9 +81,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network)
 
-    // JGit for GitLab backup
-    implementation(libs.jgit)
-
     // Gson for JSON
     implementation(libs.gson)
 

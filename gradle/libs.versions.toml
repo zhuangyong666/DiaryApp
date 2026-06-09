@@ -8,7 +8,6 @@ composeBom = "2024.12.01"
 room = "2.6.1"
 navigation = "2.8.5"
 coil = "3.0.4"
-jgit = "6.10.0.202406032230-r"
 gson = "2.11.0"
 joda = "2.12.7"
 
