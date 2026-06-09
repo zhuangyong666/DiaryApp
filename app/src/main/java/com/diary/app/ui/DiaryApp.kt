@@ -33,7 +33,6 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.diary.app.data.*
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import org.joda.time.DateTime
 
@@ -442,7 +441,7 @@ fun DiaryEditScreen(
             }
             Button(
                 onClick = {
-                    if (locationPermission.isGranted) {
+                    if (locationPermission.status.isGranted) {
                         viewModel.getCurrentLocation(context) { loc -> location = loc }
                     } else {
                         locationPermission.launchPermissionRequest()

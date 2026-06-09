@@ -4,8 +4,10 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.activity.result.contract.ActivityResultContracts.TakePicture
+import androidx.activity.result.contract.ActivityResultContracts.CaptureVideo
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -19,14 +21,14 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var viewModel: DiaryViewModel
 
-    private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+    private val takePictureLauncher = registerForActivityResult(TakePicture()) { success ->
         if (success) {
             viewModel.addMediaAttachmentFromPending(AttachmentType.IMAGE)
         }
         viewModel.setPendingMediaUri(null)
     }
 
-    private val takeVideoLauncher = registerForActivityResult(ActivityResultContracts.CaptureVideo()) { success ->
+    private val takeVideoLauncher = registerForActivityResult(CaptureVideo()) { success ->
         if (success) {
             viewModel.addMediaAttachmentFromPending(AttachmentType.VIDEO)
         }
@@ -34,13 +36,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private val pickImageLauncher = registerForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let { viewModel.addMediaAttachment(it, AttachmentType.IMAGE) }
     }
 
     private val pickVideoLauncher = registerForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let { viewModel.addMediaAttachment(it, AttachmentType.VIDEO) }
     }
@@ -77,14 +79,14 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(triggerPickImage) {
                 if (triggerPickImage) {
                     viewModel.consumePickImageTrigger()
-                    pickImageLauncher.launch(PickVisualMedia(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    pickImageLauncher.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly))
                 }
             }
 
             LaunchedEffect(triggerPickVideo) {
                 if (triggerPickVideo) {
                     viewModel.consumePickVideoTrigger()
-                    pickVideoLauncher.launch(PickVisualMedia(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                    pickVideoLauncher.launch(PickVisualMediaRequest(PickVisualMedia.VideoOnly))
                 }
             }
 
