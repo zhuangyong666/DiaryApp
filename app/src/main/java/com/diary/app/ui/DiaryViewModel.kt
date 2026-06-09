@@ -414,11 +414,11 @@ class DiaryViewModel(context: Context) : ViewModel() {
         try {
             val settings = loadBackupSettings()
             if (settings.gitlabToken.isEmpty()) {
-                _singleBackupState.value = BackupState.Error("Please configure Token in backup settings first"))
+                _singleBackupState.value = BackupState.Error("Please configure Token in backup settings first")
                 return@launch
             }
 
-            _singleBackupState.value = BackupState.BackingUp("Backing up \"${entry.title.ifEmpty { "Untitled" }}\"..."))
+            _singleBackupState.value = BackupState.BackingUp("Backing up \"${entry.title.ifEmpty { "Untitled" }}\"...")
 
             val fileName = "${DateTime(entry.createdAt).toString("yyyy-MM-dd")}_${
                 entry.title.ifEmpty { "Untitled" }
@@ -439,11 +439,11 @@ class DiaryViewModel(context: Context) : ViewModel() {
                     "âœ?\"${entry.title.ifEmpty { "Untitled" }}\" backed up to GitLab"
                 ))
             } else {
-                _singleBackupState.value = BackupState.Error("Upload failed. Check if repository exists."))
+                _singleBackupState.value = BackupState.Error("Upload failed. Check if repository exists.")
             }
         } catch (e: Exception) {
             Log.e("DiaryViewModel", "Single backup failed", e)
-            _singleBackupState.value = BackupState.Error("Backup failed: ${e.message}"))
+            _singleBackupState.value = BackupState.Error("Backup failed: ${e.message}")
         }
     }
 
