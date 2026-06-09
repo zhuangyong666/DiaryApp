@@ -9,7 +9,7 @@ room = "2.6.1"
 navigation = "2.8.5"
 coil = "3.0.4"
 jgit = "6.10.0.202406032230-r"
-permissions = "0.34.0"
+permissions = "0.32.0"
 gson = "2.11.0"
 joda = "2.12.7"
 
