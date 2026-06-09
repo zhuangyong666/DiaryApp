@@ -17,97 +17,77 @@ import com.diary.app.ui.DiaryViewModel
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var viewModel: DiaryViewModel
-
     private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
-            viewModel.addMediaAttachmentFromPending(AttachmentType.IMAGE)
+            // handled inside composable
         }
-        viewModel.setPendingMediaUri(null)
     }
 
     private val takeVideoLauncher = registerForActivityResult(ActivityResultContracts.CaptureVideo()) { success ->
         if (success) {
-            viewModel.addMediaAttachmentFromPending(AttachmentType.VIDEO)
+            // handled inside composable
         }
-        viewModel.setPendingMediaUri(null)
     }
 
     private val pickImageLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
-        uri?.let { viewModel.addMediaAttachment(it, AttachmentType.IMAGE) }
+        // handled inside composable
     }
 
     private val pickVideoLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
-        uri?.let { viewModel.addMediaAttachment(it, AttachmentType.VIDEO) }
+        // handled inside composable
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d("DiaryApp", "MainActivity onCreate start")
-
-        try {
-            viewModel = viewModel()
-            Log.d("DiaryApp", "ViewModel created")
-        } catch (e: Exception) {
-            Log.e("DiaryApp", "Failed to create ViewModel", e)
-            e.printStackTrace()
-        }
-
+        Log.d("DiaryApp", "onCreate start")
         setContent {
-            try {
-                Log.d("DiaryApp", "setContent called")
+            val vm: DiaryViewModel = viewModel()
+            Log.d("DiaryApp", "ViewModel created")
 
-                val triggerCamera by viewModel.triggerCamera.collectAsState()
-                val triggerVideo by viewModel.triggerVideo.collectAsState()
-                val triggerPickImage by viewModel.triggerPickImage.collectAsState()
-                val triggerPickVideo by viewModel.triggerPickVideo.collectAsState()
+            val triggerCamera by vm.triggerCamera.collectAsState()
+            val triggerVideo by vm.triggerVideo.collectAsState()
+            val triggerPickImage by vm.triggerPickImage.collectAsState()
+            val triggerPickVideo by vm.triggerPickVideo.collectAsState()
 
-                LaunchedEffect(triggerCamera) {
-                    if (triggerCamera) {
-                        val uri = viewModel.createImageFileUri(this@MainActivity)
-                        viewModel.setPendingMediaUri(uri)
-                        viewModel.consumeCameraTrigger()
-                        uri?.let { takePictureLauncher.launch(it) }
-                    }
+            LaunchedEffect(triggerCamera) {
+                if (triggerCamera) {
+                    val uri = vm.createImageFileUri(this@MainActivity)
+                    vm.setPendingMediaUri(uri)
+                    vm.consumeCameraTrigger()
+                    uri?.let { takePictureLauncher.launch(it) }
                 }
-
-                LaunchedEffect(triggerVideo) {
-                    if (triggerVideo) {
-                        val uri = viewModel.createVideoFileUri(this@MainActivity)
-                        viewModel.setPendingMediaUri(uri)
-                        viewModel.consumeVideoTrigger()
-                        uri?.let { takeVideoLauncher.launch(it) }
-                    }
-                }
-
-                LaunchedEffect(triggerPickImage) {
-                    if (triggerPickImage) {
-                        viewModel.consumePickImageTrigger()
-                        pickImageLauncher.launch("image/*")
-                    }
-                }
-
-                LaunchedEffect(triggerPickVideo) {
-                    if (triggerPickVideo) {
-                        viewModel.consumePickVideoTrigger()
-                        pickVideoLauncher.launch("video/*")
-                    }
-                }
-
-                Log.d("DiaryApp", "Rendering DiaryAppTheme")
-                DiaryAppTheme {
-                    DiaryNavHost(viewModel = viewModel)
-                }
-                Log.d("DiaryApp", "MainActivity onCreate complete")
-            } catch (e: Exception) {
-                Log.e("DiaryApp", "CRASH in setContent", e)
-                e.printStackTrace()
-                throw e
             }
+
+            LaunchedEffect(triggerVideo) {
+                if (triggerVideo) {
+                    val uri = vm.createVideoFileUri(this@MainActivity)
+                    vm.setPendingMediaUri(uri)
+                    vm.consumeVideoTrigger()
+                    uri?.let { takeVideoLauncher.launch(it) }
+                }
+            }
+
+            LaunchedEffect(triggerPickImage) {
+                if (triggerPickImage) {
+                    vm.consumePickImageTrigger()
+                    pickImageLauncher.launch("image/*")
+                }
+            }
+
+            LaunchedEffect(triggerPickVideo) {
+                if (triggerPickVideo) {
+                    vm.consumePickVideoTrigger()
+                    pickVideoLauncher.launch("video/*")
+                }
+            }
+
+            Log.d("DiaryApp", "Rendering UI")
+            DiaryAppTheme { DiaryNavHost(viewModel = vm) }
+            Log.d("DiaryApp", "onCreate complete")
         }
     }
 }
