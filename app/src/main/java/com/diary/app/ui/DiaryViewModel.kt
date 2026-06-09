@@ -37,7 +37,7 @@ class DiaryViewModel(context: Context) : ViewModel() {
     private val _singleBackupState = MutableStateFlow<BackupState>(BackupState.Idle)
     val singleBackupState: StateFlow<BackupState> = _singleBackupState.asStateFlow()
 
-    // 媒体捕获相关状态
+    // 媒体捕获相关状�?
     private val _pendingMediaUri = MutableStateFlow<Uri?>(null)
     val pendingMediaUri: StateFlow<Uri?> = _pendingMediaUri.asStateFlow()
 
@@ -265,7 +265,7 @@ class DiaryViewModel(context: Context) : ViewModel() {
             sb.append("\n")
         }
         if (entry.isFavorite) {
-            sb.append("---\n⭐ Favorited\n")
+            sb.append("---\n�?Favorited\n")
         }
         return sb.toString()
     }
@@ -414,11 +414,11 @@ class DiaryViewModel(context: Context) : ViewModel() {
         try {
             val settings = loadBackupSettings()
             if (settings.gitlabToken.isEmpty()) {
-                _singleBackupState.postValue(BackupState.Error("Please configure Token in backup settings first"))
+                _singleBackupState.value = BackupState.Error("Please configure Token in backup settings first"))
                 return@launch
             }
 
-            _singleBackupState.postValue(BackupState.BackingUp("Backing up \"${entry.title.ifEmpty { "Untitled" }}\"..."))
+            _singleBackupState.value = BackupState.BackingUp("Backing up \"${entry.title.ifEmpty { "Untitled" }}\"..."))
 
             val fileName = "${DateTime(entry.createdAt).toString("yyyy-MM-dd")}_${
                 entry.title.ifEmpty { "Untitled" }
@@ -435,15 +435,15 @@ class DiaryViewModel(context: Context) : ViewModel() {
             )
 
             if (success) {
-                _singleBackupState.postValue(BackupState.Success(
-                    "✅ \"${entry.title.ifEmpty { "Untitled" }}\" backed up to GitLab"
+                _singleBackupState.value = BackupState.Success(
+                    "�?\"${entry.title.ifEmpty { "Untitled" }}\" backed up to GitLab"
                 ))
             } else {
-                _singleBackupState.postValue(BackupState.Error("Upload failed. Check if repository exists."))
+                _singleBackupState.value = BackupState.Error("Upload failed. Check if repository exists."))
             }
         } catch (e: Exception) {
             Log.e("DiaryViewModel", "Single backup failed", e)
-            _singleBackupState.postValue(BackupState.Error("Backup failed: ${e.message}"))
+            _singleBackupState.value = BackupState.Error("Backup failed: ${e.message}"))
         }
     }
 
@@ -470,7 +470,7 @@ class DiaryViewModel(context: Context) : ViewModel() {
     }
 }
 
-// ===================== 数据类 =====================
+// ===================== 数据�?=====================
 
 sealed class BackupState {
     object Idle : BackupState()
