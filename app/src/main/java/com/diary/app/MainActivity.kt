@@ -5,7 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.contract.ActivityResultContracts.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -77,14 +77,14 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(triggerPickImage) {
                 if (triggerPickImage) {
                     viewModel.consumePickImageTrigger()
-                    pickImageLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    pickImageLauncher.launch(PickVisualMedia(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 }
             }
 
             LaunchedEffect(triggerPickVideo) {
                 if (triggerPickVideo) {
                     viewModel.consumePickVideoTrigger()
-                    pickVideoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                    pickVideoLauncher.launch(PickVisualMedia(ActivityResultContracts.PickVisualMedia.VideoOnly))
                 }
             }
 

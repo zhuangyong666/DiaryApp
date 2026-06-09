@@ -442,7 +442,7 @@ fun DiaryEditScreen(
             }
             Button(
                 onClick = {
-                    if (locationPermission.status.isGranted) {
+                    if (locationPermission.isGranted) {
                         viewModel.getCurrentLocation(context) { loc -> location = loc }
                     } else {
                         locationPermission.launchPermissionRequest()
