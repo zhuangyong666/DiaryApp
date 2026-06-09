@@ -476,7 +476,7 @@ class DiaryViewModel(context: Context) : ViewModel() {
             if (existingRemote == null) {
                 git.remoteAdd().setName(remote).setUri(URIish(gitUrl)).call()
             } else {
-                git.remoteSetUrl().setName(remote).setUri(URIish(gitUrl)).call()
+                git.remoteSetUrl().setName(remote).setNewUri(URIish(gitUrl)).call()
             }
 
             val credentials: CredentialsProvider = UsernamePasswordCredentialsProvider(
