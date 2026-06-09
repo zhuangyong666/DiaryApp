@@ -437,7 +437,7 @@ class DiaryViewModel(context: Context) : ViewModel() {
             if (success) {
                 _singleBackupState.value = BackupState.Success(
                     "âœ?\"${entry.title.ifEmpty { "Untitled" }}\" backed up to GitLab"
-                ))
+                )
             } else {
                 _singleBackupState.value = BackupState.Error("Upload failed. Check if repository exists.")
             }
