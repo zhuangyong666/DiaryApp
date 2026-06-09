@@ -1,6 +1,6 @@
 package com.diary.app.ui
 
-import android.content.Context
+import android.app.Application
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Build
@@ -20,11 +20,11 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-class DiaryViewModel(context: Context) : ViewModel() {
+class DiaryViewModel(application: Application) : ViewModel() {
 
-    private val repository = DiaryRepository(context)
-    private val prefs: SharedPreferences = context.getSharedPreferences("diary_prefs", Context.MODE_PRIVATE)
-    private val appContext = context.applicationContext
+    private val repository = DiaryRepository(application)
+    private val prefs: SharedPreferences = application.getSharedPreferences("diary_prefs", android.content.Context.MODE_PRIVATE)
+    private val appContext = application.applicationContext
 
     val allEntries: Flow<List<DiaryEntry>> = repository.allEntries
 
@@ -37,7 +37,7 @@ class DiaryViewModel(context: Context) : ViewModel() {
     private val _singleBackupState = MutableStateFlow<BackupState>(BackupState.Idle)
     val singleBackupState: StateFlow<BackupState> = _singleBackupState.asStateFlow()
 
-    // 媒体捕获相关状�?
+    // 媒体捕获相关状�?
     private val _pendingMediaUri = MutableStateFlow<Uri?>(null)
     val pendingMediaUri: StateFlow<Uri?> = _pendingMediaUri.asStateFlow()
 
@@ -265,7 +265,7 @@ class DiaryViewModel(context: Context) : ViewModel() {
             sb.append("\n")
         }
         if (entry.isFavorite) {
-            sb.append("---\n�?Favorited\n")
+            sb.append("---\n�?Favorited\n")
         }
         return sb.toString()
     }
@@ -436,7 +436,7 @@ class DiaryViewModel(context: Context) : ViewModel() {
 
             if (success) {
                 _singleBackupState.value = BackupState.Success(
-                    "�?\"${entry.title.ifEmpty { "Untitled" }}\" backed up to GitLab"
+                    "�?\"${entry.title.ifEmpty { "Untitled" }}\" backed up to GitLab"
                 )
             } else {
                 _singleBackupState.value = BackupState.Error("Upload failed. Check if repository exists.")
@@ -470,7 +470,7 @@ class DiaryViewModel(context: Context) : ViewModel() {
     }
 }
 
-// ===================== 数据�?=====================
+// ===================== 数据�?=====================
 
 sealed class BackupState {
     object Idle : BackupState()
