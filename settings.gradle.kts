@@ -1,4 +1,5 @@
 rootProject.name = "DiaryApp"
+include(":app")
 pluginManagement {
     repositories {
         google {
