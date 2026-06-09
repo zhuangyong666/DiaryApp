@@ -9,7 +9,6 @@ room = "2.6.1"
 navigation = "2.8.5"
 coil = "3.0.4"
 jgit = "6.10.0.202406032230-r"
-permissions = "0.32.0"
 gson = "2.11.0"
 joda = "2.12.7"
 
@@ -33,7 +32,6 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 jgit = { group = "org.eclipse.jgit", name = "org.eclipse.jgit", version.ref = "jgit" }
-accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "permissions" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 joda-time = { group = "joda-time", name = "joda-time", version.ref = "joda" }
 

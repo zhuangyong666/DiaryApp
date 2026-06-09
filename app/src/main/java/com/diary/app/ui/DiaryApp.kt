@@ -3,7 +3,10 @@ package com.diary.app.ui
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -23,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
@@ -32,8 +36,6 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.diary.app.data.*
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberPermissionState
 import org.joda.time.DateTime
 
 // ===================== App Theme =====================
@@ -60,6 +62,37 @@ fun DiaryAppTheme(
         colorScheme = colorScheme,
         content = content
     )
+}
+
+// ===================== Permission helper =====================
+
+@Composable
+fun rememberPermissionState(
+    permission: String,
+    onResult: (Boolean) -> Unit = {}
+): PermissionState {
+    val context = LocalContext.current
+    var granted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        granted = isGranted
+        onResult(isGranted)
+    }
+
+    return object : PermissionState {
+        override val isGranted get() = granted
+        override fun launchPermissionRequest() { launcher.launch(permission) }
+    }
+}
+
+interface PermissionState {
+    val isGranted: Boolean
+    fun launchPermissionRequest()
 }
 
 // ===================== Navigation =====================
@@ -305,7 +338,7 @@ fun DiaryEntryCard(
 
 // ===================== Diary Edit Screen =====================
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiaryEditScreen(
     viewModel: DiaryViewModel,
@@ -318,6 +351,8 @@ fun DiaryEditScreen(
     var content by remember { mutableStateOf(editEntry?.content ?: "") }
     var attachments by remember { mutableStateOf(editEntry?.attachments ?: emptyList()) }
     var location by remember { mutableStateOf(editEntry?.location) }
+
+    val locationPermission = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
 
     LaunchedEffect(editEntry) {
         title = editEntry?.title ?: ""
@@ -332,7 +367,6 @@ fun DiaryEditScreen(
     }
 
     val isEdit = editEntry != null
-    val locationPermission = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
 
     val saveDiary = {
         val entry = if (isEdit) {
@@ -441,7 +475,7 @@ fun DiaryEditScreen(
             }
             Button(
                 onClick = {
-                    if (locationPermission.status.isGranted) {
+                    if (locationPermission.isGranted) {
                         viewModel.getCurrentLocation(context) { loc -> location = loc }
                     } else {
                         locationPermission.launchPermissionRequest()

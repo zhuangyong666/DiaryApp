@@ -84,9 +84,6 @@ dependencies {
     // JGit for GitLab backup
     implementation(libs.jgit)
 
-    // Permissions
-    implementation(libs.accompanist.permissions)
-
     // Gson for JSON
     implementation(libs.gson)
 
