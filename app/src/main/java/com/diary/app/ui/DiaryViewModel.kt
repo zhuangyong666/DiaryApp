@@ -470,15 +470,12 @@ class DiaryViewModel(context: Context) : ViewModel() {
             val gitUrl = "https://oauth2:${settings.gitlabToken}@$host/root/${settings.repoName}.git"
 
             val remote = "origin"
-            val remotes = git.remoteList().call()
-            val existingRemote = remotes.find { it.name == remote }
 
-            if (existingRemote == null) {
-                git.remoteAdd().setName(remote).setUri(URIish(gitUrl)).call()
-            } else {
-                git.remoteRemove().setName(remote).call()
-                git.remoteAdd().setName(remote).setUri(URIish(gitUrl)).call()
-            }
+            // Use StoredConfig to set remote URL (works in all JGit versions)
+            val config = git.repository.config
+            config.setString("remote", remote, "url", gitUrl)
+            config.setString("remote", remote, "fetch", "+refs/heads/*:refs/remotes/$remote/*")
+            config.save()
 
             val credentials: CredentialsProvider = UsernamePasswordCredentialsProvider(
                 "oauth2", settings.gitlabToken
