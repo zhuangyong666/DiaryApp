@@ -395,16 +395,16 @@ fun DiaryEditScreen(
     val doAiWrite = {
         if (aiPrompt.isEmpty()) {
             aiResult = "请输入提示词"
-            return@doAiWrite
-        }
-        aiLoading = true
-        aiResult = ""
-        viewModel.aiWrite(aiPrompt, aiConfig) { result ->
-            aiLoading = false
-            aiResult = result
-            if (result.isNotEmpty() && result.startsWith("错误").not()) {
-                content = content + (if (content.isNotEmpty()) "\n\n" else "") + result
-                showAIDialog = false
+        } else {
+            aiLoading = true
+            aiResult = ""
+            viewModel.aiWrite(aiPrompt, aiConfig) { result ->
+                aiLoading = false
+                aiResult = result
+                if (result.isNotEmpty() && result.startsWith("错误").not()) {
+                    content = content + (if (content.isNotEmpty()) "\n\n" else "") + result
+                    showAIDialog = false
+                }
             }
         }
     }
