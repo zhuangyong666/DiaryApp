@@ -68,8 +68,7 @@ fun DiaryAppTheme(
 
 @Composable
 fun rememberPermissionState(
-    permission: String,
-    onResult: (Boolean) -> Unit = {}
+    permission: String
 ): PermissionState {
     val context = LocalContext.current
     var granted by remember {
@@ -81,7 +80,6 @@ fun rememberPermissionState(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         granted = isGranted
-        onResult(isGranted)
     }
 
     return object : PermissionState {
@@ -161,7 +159,7 @@ fun DiaryNavHost(
     }
 }
 
-// ===================== Diary List Screen =====================
+// ===================== 日记列表页 =====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -195,7 +193,7 @@ fun DiaryListScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search...") },
+                            placeholder = { Text("搜索日记...") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -204,26 +202,26 @@ fun DiaryListScreen(
                             )
                         )
                     } else {
-                        Text("My Diary", fontSize = 22.sp)
+                        Text("📔 我的日记", fontSize = 22.sp)
                     }
                 },
                 actions = {
                     if (showSearch) {
                         IconButton(onClick = { showSearch = false; searchQuery = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
+                            Icon(Icons.Default.Close, contentDescription = "关闭")
                         }
                     } else {
                         IconButton(onClick = { showSearch = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search")
+                            Icon(Icons.Default.Search, contentDescription = "搜索")
                         }
                         IconButton(onClick = { showFavoritesOnly = !showFavoritesOnly }) {
                             Icon(
                                 if (showFavoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                contentDescription = "Favorites"
+                                contentDescription = "收藏"
                             )
                         }
                         IconButton(onClick = onBackup) {
-                            Icon(Icons.Default.CloudUpload, contentDescription = "Backup")
+                            Icon(Icons.Default.CloudUpload, contentDescription = "备份")
                         }
                     }
                 },
@@ -234,7 +232,7 @@ fun DiaryListScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onNewEntry) {
-                Icon(Icons.Default.Add, contentDescription = "New")
+                Icon(Icons.Default.Add, contentDescription = "新建")
             }
         }
     ) { padding ->
@@ -244,9 +242,17 @@ fun DiaryListScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("No entries yet", style = MaterialTheme.typography.bodyLarge)
-                    Text("Tap + to start writing", style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("📝", fontSize = 64.sp)
+                    Text(
+                        if (showFavoritesOnly) "还没有收藏的日记" else "还没有日记",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(top = 16.dp)
+                    )
+                    Text(
+                        "点击 + 开始写第一篇日记吧！",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         } else {
@@ -279,7 +285,7 @@ fun DiaryEntryCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (entry.title.isEmpty()) "Untitled" else entry.title,
+                    text = if (entry.title.isEmpty()) "无标题" else entry.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
@@ -309,10 +315,10 @@ fun DiaryEntryCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (entry.attachments.isNotEmpty()) {
-                    Text("${entry.attachments.size}", style = MaterialTheme.typography.labelSmall)
+                    Text("📷 ${entry.attachments.size}", style = MaterialTheme.typography.labelSmall)
                 }
                 if (entry.location != null) {
-                    Text("Location", style = MaterialTheme.typography.labelSmall)
+                    Text("📍", style = MaterialTheme.typography.labelSmall)
                 }
             }
             if (entry.attachments.isNotEmpty()) {
@@ -336,7 +342,7 @@ fun DiaryEntryCard(
     }
 }
 
-// ===================== Diary Edit Screen =====================
+// ===================== 编辑页 =====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -385,15 +391,15 @@ fun DiaryEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEdit) "Edit Diary" else "New Diary") },
+                title = { Text(if (isEdit) "编辑日记" else "新建日记") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = saveDiary) {
-                        Icon(Icons.Default.Save, contentDescription = "Save")
+                        Icon(Icons.Default.Save, contentDescription = "保存")
                     }
                 }
             )
@@ -405,16 +411,16 @@ fun DiaryEditScreen(
         ) {
             OutlinedTextField(
                 value = title, onValueChange = { title = it },
-                placeholder = { Text("Title (optional)") },
+                placeholder = { Text("标题（可选）") },
                 modifier = Modifier.fillMaxWidth(), singleLine = true
             )
             OutlinedTextField(
                 value = content, onValueChange = { content = it },
-                placeholder = { Text("What happened today?") },
+                placeholder = { Text("今天发生了什么？") },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp), minLines = 5
             )
             if (attachments.isNotEmpty()) {
-                Text("Attachments (${attachments.size})", fontWeight = FontWeight.Bold)
+                Text("📎 附件 (${attachments.size})", fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(attachments) { attachment ->
                         Box {
@@ -430,7 +436,7 @@ fun DiaryEditScreen(
                                 onClick = { attachments = attachments.filter { it.uri != attachment.uri } },
                                 modifier = Modifier.align(Alignment.TopEnd)
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = "Remove",
+                                Icon(Icons.Default.Close, contentDescription = "删除",
                                     tint = androidx.compose.ui.graphics.Color.Red)
                             }
                         }
@@ -443,15 +449,15 @@ fun DiaryEditScreen(
                     Row(modifier = Modifier.padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Location", fontWeight = FontWeight.Bold)
-                            Text("Lat: ${location!!.latitude}, Lng: ${location!!.longitude}",
+                            Text("📍 位置", fontWeight = FontWeight.Bold)
+                            Text("纬度: ${location!!.latitude}, 经度: ${location!!.longitude}",
                                 style = MaterialTheme.typography.bodySmall)
                             if (location!!.address != null) {
                                 Text(location!!.address!!, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         IconButton(onClick = { location = null }) {
-                            Icon(Icons.Default.Close, contentDescription = "Remove")
+                            Icon(Icons.Default.Close, contentDescription = "删除")
                         }
                     }
                 }
@@ -459,18 +465,18 @@ fun DiaryEditScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { viewModel.triggerCapturePhoto() }, modifier = Modifier.weight(1f)) {
-                    Text("Take Photo")
+                    Text("📷 拍照")
                 }
                 OutlinedButton(onClick = { viewModel.triggerCaptureVideo() }, modifier = Modifier.weight(1f)) {
-                    Text("Record Video")
+                    Text("🎬 录像")
                 }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { viewModel.triggerPickImageAction() }, modifier = Modifier.weight(1f)) {
-                    Text("Pick Image")
+                    Text("🖼️ 选图片")
                 }
                 OutlinedButton(onClick = { viewModel.triggerPickVideoAction() }, modifier = Modifier.weight(1f)) {
-                    Text("Pick Video")
+                    Text("🎥 选视频")
                 }
             }
             Button(
@@ -485,13 +491,13 @@ fun DiaryEditScreen(
             ) {
                 Icon(Icons.Default.LocationOn, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Get Current Location")
+                Text("📍 获取当前位置")
             }
         }
     }
 }
 
-// ===================== Diary Detail Screen =====================
+// ===================== 详情页 =====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -520,51 +526,51 @@ fun DiaryDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(e.title.ifEmpty { "Diary Detail" }) },
+                title = { Text(e.title.ifEmpty { "日记详情" }) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.setEditEntry(e); onEdit() }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit")
+                        Icon(Icons.Default.Edit, contentDescription = "编辑")
                     }
                     IconButton(onClick = { viewModel.toggleFavorite(e); entry = e.copy(isFavorite = !e.isFavorite) }) {
                         Icon(
                             if (e.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Favorite",
+                            contentDescription = "收藏",
                             tint = if (e.isFavorite) androidx.compose.ui.graphics.Color(0xFFFF5722) else MaterialTheme.colorScheme.onSurface
                         )
                     }
                     var showDeleteDialog by remember { mutableStateOf(false) }
                     var showBackupDialog by remember { mutableStateOf(false) }
                     IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                        Icon(Icons.Default.Delete, contentDescription = "删除")
                     }
                     IconButton(onClick = { showBackupDialog = true }) {
-                        Icon(Icons.Default.CloudUpload, contentDescription = "Backup to GitLab")
+                        Icon(Icons.Default.CloudUpload, contentDescription = "备份")
                     }
                     if (showBackupDialog) {
                         val singleBackup by viewModel.singleBackupState.collectAsStateWithLifecycle()
                         AlertDialog(
                             onDismissRequest = { if (singleBackup !is BackupState.BackingUp) showBackupDialog = false },
-                            title = { Text("Backup to GitLab") },
+                            title = { Text("备份到 GitLab") },
                             text = {
                                 Column {
-                                    Text("Backup this entry as a Markdown file to your GitLab repository.")
+                                    Text("将这篇日记以 Markdown 格式备份到 GitLab。")
                                     when (singleBackup) {
                                         is BackupState.BackingUp -> {
                                             Spacer(Modifier.height(8.dp))
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                                 Spacer(Modifier.width(8.dp))
-                                                Text("Backing up...")
+                                                Text("正在备份...")
                                             }
                                         }
                                         is BackupState.Success -> {
                                             Spacer(Modifier.height(8.dp))
-                                            Text("Backup successful!", color = MaterialTheme.colorScheme.primary)
+                                            Text("✅ 备份成功！", color = MaterialTheme.colorScheme.primary)
                                         }
                                         is BackupState.Error -> {
                                             Spacer(Modifier.height(8.dp))
@@ -586,14 +592,14 @@ fun DiaryDetailScreen(
                                             }
                                         }
                                     ) {
-                                        if (singleBackup is BackupState.Success) Text("Close") else Text("Backup")
+                                        if (singleBackup is BackupState.Success) Text("关闭") else Text("确认备份")
                                     }
                                 }
                             },
                             dismissButton = {
                                 if (singleBackup !is BackupState.BackingUp) {
                                     TextButton(onClick = { showBackupDialog = false; viewModel.clearSingleBackupState() }) {
-                                        Text("Cancel")
+                                        Text("取消")
                                     }
                                 }
                             }
@@ -602,19 +608,19 @@ fun DiaryDetailScreen(
                     if (showDeleteDialog) {
                         AlertDialog(
                             onDismissRequest = { showDeleteDialog = false },
-                            title = { Text("Delete Entry") },
-                            text = { Text("Are you sure? This cannot be undone.") },
+                            title = { Text("删除日记") },
+                            text = { Text("确定要删除这篇日记吗？此操作不可撤销。") },
                             confirmButton = {
                                 TextButton(onClick = {
                                     viewModel.deleteEntry(e)
                                     showDeleteDialog = false
                                     onNavigateBack()
                                 }) {
-                                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                                    Text("删除", color = MaterialTheme.colorScheme.error)
                                 }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+                                TextButton(onClick = { showDeleteDialog = false }) { Text("取消") }
                             }
                         )
                     }
@@ -632,12 +638,12 @@ fun DiaryDetailScreen(
             ) {
                 Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceAround) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Created", style = MaterialTheme.typography.labelMedium)
+                        Text("📅 创建", style = MaterialTheme.typography.labelMedium)
                         Text(DateTime(e.createdAt).toString("yyyy-MM-dd HH:mm"),
                             style = MaterialTheme.typography.bodyMedium)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Modified", style = MaterialTheme.typography.labelMedium)
+                        Text("✏️ 修改", style = MaterialTheme.typography.labelMedium)
                         Text(DateTime(e.updatedAt).toString("yyyy-MM-dd HH:mm"),
                             style = MaterialTheme.typography.bodyMedium)
                     }
@@ -647,7 +653,7 @@ fun DiaryDetailScreen(
                 Text(text = e.content, style = MaterialTheme.typography.bodyLarge, lineHeight = 24.sp)
             }
             if (e.attachments.isNotEmpty()) {
-                Text("Attachments (${e.attachments.size})", fontWeight = FontWeight.Bold)
+                Text("📎 附件 (${e.attachments.size})", fontWeight = FontWeight.Bold)
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(e.attachments) { attachment ->
                         Card(modifier = Modifier.fillMaxWidth()) {
@@ -671,7 +677,7 @@ fun DiaryDetailScreen(
                                                 contentDescription = attachment.fileName,
                                                 modifier = Modifier.fillMaxSize()
                                             )
-                                            Icon(Icons.Default.PlayCircle, contentDescription = "Play",
+                                            Icon(Icons.Default.PlayCircle, contentDescription = "播放",
                                                 tint = androidx.compose.ui.graphics.Color.White,
                                                 modifier = Modifier.size(64.dp))
                                         }
@@ -693,8 +699,8 @@ fun DiaryDetailScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Location", fontWeight = FontWeight.Bold)
-                        Text("Lat: ${e.location!!.latitude}, Lng: ${e.location!!.longitude}",
+                        Text("📍 位置", fontWeight = FontWeight.Bold)
+                        Text("纬度: ${e.location!!.latitude}, 经度: ${e.location!!.longitude}",
                             style = MaterialTheme.typography.bodyMedium)
                         if (e.location!!.address != null) {
                             Text(e.location!!.address!!, style = MaterialTheme.typography.bodyMedium)
@@ -703,7 +709,7 @@ fun DiaryDetailScreen(
                             val uri = Uri.parse("geo:${e.location!!.latitude},${e.location!!.longitude}")
                             context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                         }) {
-                            Text("View on Map")
+                            Text("🗺️ 在地图中查看")
                         }
                     }
                 }
@@ -712,7 +718,7 @@ fun DiaryDetailScreen(
     }
 }
 
-// ===================== Backup Screen =====================
+// ===================== 备份页 =====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -737,10 +743,10 @@ fun BackupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("GitLab Backup") },
+                title = { Text("☁️ GitLab 备份") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -755,21 +761,21 @@ fun BackupScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("How to use", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("💡 使用说明", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "1. Enter your GitLab instance URL\n" +
-                        "2. Enter Personal Access Token (needs api + write_repository scope)\n" +
-                        "3. Set repository name\n" +
-                        "4. Tap 'Full Backup' to create repo and push all entries\n" +
-                        "5. Individual entries can be backed up from the detail view",
+                        "1. 输入你的 GitLab 实例 URL（如 https://gitlab.com）\n" +
+                        "2. 输入 Personal Access Token（需要 api + write_repository 权限）\n" +
+                        "3. 设置仓库名称\n" +
+                        "4. 点击「全量备份」即可自动创建仓库并推送所有日记\n" +
+                        "5. 单篇日记可从详情页单独备份",
                         style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             }
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Configuration", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("⚙️ 配置", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     OutlinedTextField(
                         value = gitlabUrl, onValueChange = { gitlabUrl = it },
                         label = { Text("GitLab URL") }, placeholder = { Text("https://gitlab.com") },
@@ -782,7 +788,7 @@ fun BackupScreen(
                     )
                     OutlinedTextField(
                         value = repoName, onValueChange = { repoName = it },
-                        label = { Text("Repository Name") }, placeholder = { Text("diary-backup") },
+                        label = { Text("仓库名称") }, placeholder = { Text("diary-backup") },
                         modifier = Modifier.fillMaxWidth(), singleLine = true
                     )
                 }
@@ -802,7 +808,7 @@ fun BackupScreen(
                     Icon(Icons.Default.CloudUpload, contentDescription = null)
                 }
                 Spacer(Modifier.width(8.dp))
-                Text("Full Backup to GitLab")
+                Text("📦 全量备份到 GitLab")
             }
             Spacer(modifier = Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -812,7 +818,7 @@ fun BackupScreen(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                             Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Ready", fontWeight = FontWeight.Bold)
+                                Text("✅ 就绪", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -828,7 +834,7 @@ fun BackupScreen(
                         Card(modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Text("Backup successful!", fontWeight = FontWeight.Bold,
+                                Text("✅ 备份成功！", fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer)
                                 Text(state.message, style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(top = 4.dp))
@@ -839,7 +845,7 @@ fun BackupScreen(
                         Card(modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Text("Backup failed", fontWeight = FontWeight.Bold,
+                                Text("❌ 备份失败", fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onErrorContainer)
                                 Text(state.message, style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(top = 4.dp))
@@ -866,7 +872,7 @@ fun BackupScreen(
                                     Text(sState.message, fontWeight = FontWeight.Bold)
                                 }
                                 IconButton(onClick = { viewModel.clearSingleBackupState() }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Dismiss")
+                                    Icon(Icons.Default.Close, contentDescription = "关闭")
                                 }
                             }
                         }
@@ -880,7 +886,7 @@ fun BackupScreen(
                                     Text(sState.message, style = MaterialTheme.typography.bodySmall)
                                 }
                                 IconButton(onClick = { viewModel.clearSingleBackupState() }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Dismiss")
+                                    Icon(Icons.Default.Close, contentDescription = "关闭")
                                 }
                             }
                         }
