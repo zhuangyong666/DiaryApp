@@ -376,10 +376,11 @@ fun DiaryEditScreen(
     }
 
     val isEdit = editEntry != null && editEntry.id != 0L
+    val currentEntry = editEntry
 
     val saveDiary = {
-        val entry = if (isEdit) {
-            editEntry!!.copy(
+        val entry = if (isEdit && currentEntry != null) {
+            currentEntry.copy(
                 title = title, content = content,
                 attachments = attachments, location = location,
                 updatedAt = System.currentTimeMillis()
