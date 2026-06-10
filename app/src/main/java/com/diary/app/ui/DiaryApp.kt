@@ -437,7 +437,7 @@ fun DiaryEditScreen(
             )
             OutlinedTextField(
                 value = content, onValueChange = { content = it },
-                placeholder = { Text("今天发生了什么？" },
+                placeholder = { Text("今天发生了什么？") },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp), minLines = 5
             )
             // AI 编写按钮行
