@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -67,9 +68,7 @@ fun DiaryAppTheme(
 // ===================== Permission helper =====================
 
 @Composable
-fun rememberPermissionState(
-    permission: String
-): PermissionState {
+fun rememberPermissionState(permission: String): PermissionState {
     val context = LocalContext.current
     var granted by remember {
         mutableStateOf(
@@ -78,9 +77,7 @@ fun rememberPermissionState(
     }
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        granted = isGranted
-    }
+    ) { isGranted -> granted = isGranted }
 
     return object : PermissionState {
         override val isGranted get() = granted
@@ -138,9 +135,7 @@ fun DiaryNavHost(
         }
         composable(
             route = Screen.Detail.route,
-            arguments = listOf(navArgument("entryId") {
-                type = NavType.LongType
-            })
+            arguments = listOf(navArgument("entryId") { type = NavType.LongType })
         ) { backStackEntry ->
             val entryId = backStackEntry.arguments?.getLong("entryId") ?: 0L
             DiaryDetailScreen(
@@ -355,10 +350,18 @@ fun DiaryEditScreen(
 
     var title by remember { mutableStateOf(editEntry?.title ?: "") }
     var content by remember { mutableStateOf(editEntry?.content ?: "") }
-    var attachments by remember { mutableStateOf(editEntry?.attachments ?: emptyList()) }
+    var attachments by remember { mutableStateOf<List<DiaryAttachment>>(editEntry?.attachments ?: emptyList()) }
     var location by remember { mutableStateOf(editEntry?.location) }
 
     val locationPermission = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    // AI 编写对话框
+    var showAIDialog by remember { mutableStateOf(false) }
+    var aiPrompt by remember { mutableStateOf("") }
+    var aiLoading by remember { mutableStateOf(false) }
+    var aiResult by remember { mutableStateOf("") }
+
+    val aiConfig by viewModel.aiConfig.collectAsStateWithLifecycle()
 
     LaunchedEffect(editEntry) {
         title = editEntry?.title ?: ""
@@ -367,9 +370,9 @@ fun DiaryEditScreen(
         location = editEntry?.location
     }
 
-    val currentEdit by viewModel.editEntry.collectAsStateWithLifecycle()
-    LaunchedEffect(currentEdit?.attachments?.size) {
-        currentEdit?.let { attachments = it.attachments }
+    // Monitor attachments from ViewModel (when user picks media)
+    LaunchedEffect(editEntry?.attachments?.size) {
+        editEntry?.let { attachments = it.attachments }
     }
 
     val isEdit = editEntry != null
@@ -388,6 +391,21 @@ fun DiaryEditScreen(
         onNavigateBack()
     }
 
+    // AI编写
+    val doAiWrite = {
+        if (aiPrompt.isBlank()) return@doAiWrite
+        aiLoading = true
+        aiResult = ""
+        viewModel.aiWrite(aiPrompt, aiConfig) { result ->
+            aiLoading = false
+            aiResult = result
+            if (result.isNotEmpty() && !result.startsWith("错误")) {
+                content = content + (if (content.isNotEmpty()) "\n\n" else "") + result
+                showAIDialog = false
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -398,6 +416,9 @@ fun DiaryEditScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showAIDialog = true }) {
+                        Icon(Icons.AutoAwesome, contentDescription = "AI编写")
+                    }
                     IconButton(onClick = saveDiary) {
                         Icon(Icons.Default.Save, contentDescription = "保存")
                     }
@@ -416,9 +437,21 @@ fun DiaryEditScreen(
             )
             OutlinedTextField(
                 value = content, onValueChange = { content = it },
-                placeholder = { Text("今天发生了什么？") },
+                placeholder = { Text("今天发生了什么？" },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp), minLines = 5
             )
+            // AI 编写按钮行
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    onClick = { showAIDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.AutoAwesome, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("✨ AI 帮我写")
+                }
+            }
+            // 附件展示
             if (attachments.isNotEmpty()) {
                 Text("📎 附件 (${attachments.size})", fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -443,6 +476,7 @@ fun DiaryEditScreen(
                     }
                 }
             }
+            // 位置
             if (location != null) {
                 Card(modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
@@ -463,14 +497,7 @@ fun DiaryEditScreen(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = { viewModel.triggerCapturePhoto() }, modifier = Modifier.weight(1f)) {
-                    Text("📷 拍照")
-                }
-                OutlinedButton(onClick = { viewModel.triggerCaptureVideo() }, modifier = Modifier.weight(1f)) {
-                    Text("🎬 录像")
-                }
-            }
+            // 选择图片/视频
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = { viewModel.triggerPickImageAction() }, modifier = Modifier.weight(1f)) {
                     Text("🖼️ 选图片")
@@ -479,6 +506,7 @@ fun DiaryEditScreen(
                     Text("🎥 选视频")
                 }
             }
+            // 获取位置
             Button(
                 onClick = {
                     if (locationPermission.isGranted) {
@@ -493,6 +521,72 @@ fun DiaryEditScreen(
                 Spacer(Modifier.width(8.dp))
                 Text("📍 获取当前位置")
             }
+        }
+
+        // AI 编写对话框
+        if (showAIDialog) {
+            AlertDialog(
+                onDismissRequest = { if (!aiLoading) showAIDialog = false },
+                title = { Text("✨ AI 帮我写") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("告诉 AI 你想写什么内容的日记：", style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(
+                            value = aiPrompt,
+                            onValueChange = { aiPrompt = it },
+                            placeholder = { Text("例如：今天去了海边，天气很好，心情很愉快") },
+                            modifier = Modifier.fillMaxWidth().height(100.dp),
+                            enabled = !aiLoading
+                        )
+                        // AI 配置
+                        Text("AI 接口配置：", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                        OutlinedTextField(
+                            value = aiConfig.apiUrl,
+                            onValueChange = { viewModel.updateAiConfig(it, aiConfig.apiKey) },
+                            label = { Text("API URL") },
+                            placeholder = { Text("http://127.0.0.1:11434/api/generate") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !aiLoading
+                        )
+                        OutlinedTextField(
+                            value = aiConfig.apiKey,
+                            onValueChange = { viewModel.updateAiConfig(aiConfig.apiUrl, it) },
+                            label = { Text("API Key（可选）") },
+                            placeholder = { Text("Bearer token") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = !aiLoading
+                        )
+                        if (aiLoading) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("AI 正在生成中...")
+                            }
+                        }
+                        if (aiResult.isNotEmpty()) {
+                            SelectionContainer {
+                                Text(aiResult, style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (!aiLoading) {
+                        TextButton(onClick = { doAiWrite() }) {
+                            if (aiResult.isNotEmpty() && !aiResult.startsWith("错误")) Text("插入内容")
+                            else Text("生成")
+                        }
+                    }
+                },
+                dismissButton = {
+                    if (!aiLoading) {
+                        TextButton(onClick = { showAIDialog = false }) { Text("取消") }
+                    }
+                }
+            )
         }
     }
 }
@@ -582,16 +676,13 @@ fun DiaryDetailScreen(
                             },
                             confirmButton = {
                                 if (singleBackup !is BackupState.BackingUp) {
-                                    TextButton(
-                                        onClick = {
-                                            if (singleBackup is BackupState.Success) {
-                                                showBackupDialog = false
-                                                viewModel.clearSingleBackupState()
-                                            } else {
-                                                viewModel.backupSingleEntry(e)
-                                            }
+                                    TextButton(onClick = {
+                                        if (singleBackup is BackupState.Success) {
+                                            showBackupDialog = false; viewModel.clearSingleBackupState()
+                                        } else {
+                                            viewModel.backupSingleEntry(e)
                                         }
-                                    ) {
+                                    }) {
                                         if (singleBackup is BackupState.Success) Text("关闭") else Text("确认备份")
                                     }
                                 }
@@ -615,9 +706,7 @@ fun DiaryDetailScreen(
                                     viewModel.deleteEntry(e)
                                     showDeleteDialog = false
                                     onNavigateBack()
-                                }) {
-                                    Text("删除", color = MaterialTheme.colorScheme.error)
-                                }
+                                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
                             },
                             dismissButton = {
                                 TextButton(onClick = { showDeleteDialog = false }) { Text("取消") }
@@ -764,11 +853,10 @@ fun BackupScreen(
                     Text("💡 使用说明", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "1. 输入你的 GitLab 实例 URL（如 https://gitlab.com）\n" +
+                        "1. 输入你的 GitLab 实例 URL\n" +
                         "2. 输入 Personal Access Token（需要 api + write_repository 权限）\n" +
                         "3. 设置仓库名称\n" +
-                        "4. 点击「全量备份」即可自动创建仓库并推送所有日记\n" +
-                        "5. 单篇日记可从详情页单独备份",
+                        "4. 点击「全量备份」即可自动创建仓库并推送",
                         style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)
                     )
                 }
@@ -811,87 +899,40 @@ fun BackupScreen(
                 Text("📦 全量备份到 GitLab")
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                when (val state = backupState) {
-                    is BackupState.Idle -> {
-                        Card(modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("✅ 就绪", fontWeight = FontWeight.Bold)
-                            }
-                        }
+            when (val state = backupState) {
+                is BackupState.Idle -> {
+                    Card(modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Row(modifier = Modifier.padding(12.dp)) { Text("✅ 就绪", fontWeight = FontWeight.Bold) }
                     }
-                    is BackupState.BackingUp -> {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(state.message, fontWeight = FontWeight.Bold)
-                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                            }
-                        }
-                    }
-                    is BackupState.Success -> {
-                        Card(modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text("✅ 备份成功！", fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                Text(state.message, style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 4.dp))
-                            }
-                        }
-                    }
-                    is BackupState.Error -> {
-                        Card(modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text("❌ 备份失败", fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onErrorContainer)
-                                Text(state.message, style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 4.dp))
-                            }
+                }
+                is BackupState.BackingUp -> {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(state.message, fontWeight = FontWeight.Bold)
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
                         }
                     }
                 }
-                when (val sState = singleBackupState) {
-                    is BackupState.BackingUp -> {
-                        Card(modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(sState.message, style = MaterialTheme.typography.bodyMedium)
-                            }
+                is BackupState.Success -> {
+                    Card(modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("✅ 备份成功！", fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            Text(state.message, style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    is BackupState.Success -> {
-                        Card(modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(sState.message, fontWeight = FontWeight.Bold)
-                                }
-                                IconButton(onClick = { viewModel.clearSingleBackupState() }) {
-                                    Icon(Icons.Default.Close, contentDescription = "关闭")
-                                }
-                            }
+                }
+                is BackupState.Error -> {
+                    Card(modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("❌ 备份失败", fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text(state.message, style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    is BackupState.Error -> {
-                        Card(modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(sState.message, style = MaterialTheme.typography.bodySmall)
-                                }
-                                IconButton(onClick = { viewModel.clearSingleBackupState() }) {
-                                    Icon(Icons.Default.Close, contentDescription = "关闭")
-                                }
-                            }
-                        }
-                    }
-                    is BackupState.Idle -> {}
                 }
             }
         }
