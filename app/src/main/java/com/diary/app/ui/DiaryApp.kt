@@ -375,7 +375,7 @@ fun DiaryEditScreen(
         editEntry?.let { attachments = it.attachments }
     }
 
-    val isEdit = editEntry != null
+    val isEdit = editEntry != null && editEntry.id != 0L
 
     val saveDiary = {
         val entry = if (isEdit) {
