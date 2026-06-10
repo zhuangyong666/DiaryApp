@@ -393,13 +393,16 @@ fun DiaryEditScreen(
 
     // AI 编写
     val doAiWrite = {
-        if (aiPrompt.isEmpty()) return@doAiWrite
+        if (aiPrompt.isEmpty()) {
+            aiResult = "请输入提示词"
+            return@doAiWrite
+        }
         aiLoading = true
         aiResult = ""
         viewModel.aiWrite(aiPrompt, aiConfig) { result ->
             aiLoading = false
             aiResult = result
-            if (result.isNotEmpty() && !result.startsWith("错误")) {
+            if (result.isNotEmpty() && result.startsWith("错误").not()) {
                 content = content + (if (content.isNotEmpty()) "\n\n" else "") + result
                 showAIDialog = false
             }
@@ -542,7 +545,7 @@ fun DiaryEditScreen(
                         Text("AI 接口配置：", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                         OutlinedTextField(
                             value = aiConfig.apiUrl,
-                            onValueChange = { viewModel.updateAiConfig(it, aiConfig.apiKey) },
+                            onValueChange = { newUrl -> viewModel.updateAiConfig(newUrl, aiConfig.apiKey) },
                             label = { Text("API URL") },
                             placeholder = { Text("http://127.0.0.1:11434/api/generate") },
                             modifier = Modifier.fillMaxWidth(),
@@ -551,7 +554,7 @@ fun DiaryEditScreen(
                         )
                         OutlinedTextField(
                             value = aiConfig.apiKey,
-                            onValueChange = { viewModel.updateAiConfig(aiConfig.apiUrl, it) },
+                            onValueChange = { newKey -> viewModel.updateAiConfig(aiConfig.apiUrl, newKey) },
                             label = { Text("API Key（可选）") },
                             placeholder = { Text("Bearer token") },
                             modifier = Modifier.fillMaxWidth(),

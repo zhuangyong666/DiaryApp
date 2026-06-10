@@ -39,7 +39,6 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     private val _singleBackupState = MutableStateFlow<BackupState>(BackupState.Idle)
     val singleBackupState: StateFlow<BackupState> = _singleBackupState.asStateFlow()
 
-    // AI config
     private val _aiConfig = MutableStateFlow(AiConfig())
     val aiConfig: StateFlow<AiConfig> = _aiConfig.asStateFlow()
 
@@ -47,7 +46,6 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         _aiConfig.value = _aiConfig.value.copy(apiUrl = url, apiKey = key)
     }
 
-    // 媒体捕获相关状�?
     private val _pendingMediaUri = MutableStateFlow<Uri?>(null)
     val pendingMediaUri: StateFlow<Uri?> = _pendingMediaUri.asStateFlow()
 
@@ -275,7 +273,7 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             sb.append("\n")
         }
         if (entry.isFavorite) {
-            sb.append("---\n�?Favorited\n")
+            sb.append("---\n⭐ Favorited\n")
         }
         return sb.toString()
     }
@@ -318,7 +316,7 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             "description": "DiaryApp backup - ${DateTime().toString("yyyy-MM-dd")}"
         }""".trimIndent()
         val (code, _) = gitlabRequest(settings, "/projects", "POST", body)
-        return code == 201 || code == 400 // 400 = already exists
+        return code == 201 || code == 400
     }
 
     private fun commitFilesToGitLab(
@@ -326,7 +324,7 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         files: Map<String, String>,
         commitMessage: String
     ): Boolean {
-        val encodedPath = java.net.URLEncoder.encode("root/${settings.repoName}", "UTF-8")
+        val encodedPath = URLEncoder.encode("root/${settings.repoName}", "UTF-8")
         val actions = files.map { (filePath, content) ->
             JsonObject().apply {
                 addProperty("action", "create")
@@ -355,15 +353,15 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     // ===================== 全量备份 =====================
 
     fun startBackup() = viewModelScope.launch {
-        try {
-            val settings = loadBackupSettings()
-            if (settings.gitlabToken.isEmpty()) {
-                _backupState.value = BackupState.Error("Please enter Personal Access Token")
-                return@launch
-            }
+        withContext(Dispatchers.IO) {
+            try {
+                val settings = loadBackupSettings()
+                if (settings.gitlabToken.isEmpty()) {
+                    _backupState.value = BackupState.Error("Please enter Personal Access Token")
+                    return@withContext
+                }
 
-            _backupState.value = BackupState.BackingUp("Creating/checking repository...")
-            withContext(Dispatchers.IO) {
+                _backupState.value = BackupState.BackingUp("Creating/checking repository...")
                 createGitLabProject(settings)
 
                 _backupState.value = BackupState.BackingUp("Exporting diary entries...")
@@ -411,45 +409,46 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                         "Upload failed. Check: 1) repo exists 2) token has write access 3) main branch exists"
                     )
                 }
+            } catch (e: Exception) {
+                Log.e("DiaryViewModel", "Backup failed", e)
+                _backupState.value = BackupState.Error("Backup failed: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e("DiaryViewModel", "Backup failed", e)
-            _backupState.value = BackupState.Error("Backup failed: ${e.message}")
         }
     }
 
     // ===================== 单篇备份 =====================
 
-    fun backupSingleEntry(entry: DiaryEntry) = viewModelScope.launch(Dispatchers.IO) {
+    fun backupSingleEntry(entry: DiaryEntry) = viewModelScope.launch {
+        if (loadBackupSettings().gitlabToken.isEmpty()) {
+            _singleBackupState.value = BackupState.Error("Please configure Token first")
+            return@launch
+        }
+
+        _singleBackupState.value = BackupState.BackingUp("Backing up \"${entry.title.ifEmpty { "Untitled" }}\"...")
+
         try {
-            val settings = loadBackupSettings()
-            if (settings.gitlabToken.isEmpty()) {
-                _singleBackupState.value = BackupState.Error("Please configure Token in backup settings first")
-                return@launch
-            }
+            withContext(Dispatchers.IO) {
+                val fileName = "${DateTime(entry.createdAt).toString("yyyy-MM-dd")}_${
+                    entry.title.ifEmpty { "Untitled" }
+                        .replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "")
+                        .replace(" ", "_")
+                        .take(50)
+                }.md"
+                val md = entryToMarkdown(entry)
 
-            _singleBackupState.value = BackupState.BackingUp("Backing up \"${entry.title.ifEmpty { "Untitled" }}\"...")
-
-            val fileName = "${DateTime(entry.createdAt).toString("yyyy-MM-dd")}_${
-                entry.title.ifEmpty { "Untitled" }
-                    .replace(Regex("[^\\p{L}\\p{N}\\-_ ]"), "")
-                    .replace(" ", "_")
-                    .take(50)
-            }.md"
-            val md = entryToMarkdown(entry)
-
-            val success = commitFilesToGitLab(
-                settings,
-                mapOf("entries/$fileName" to md),
-                "Backup: ${entry.title.ifEmpty { "Untitled" }} (${DateTime(entry.createdAt).toString("yyyy-MM-dd HH:mm")})"
-            )
-
-            if (success) {
-                _singleBackupState.value = BackupState.Success(
-                    "�?\"${entry.title.ifEmpty { "Untitled" }}\" backed up to GitLab"
+                val success = commitFilesToGitLab(
+                    loadBackupSettings(),
+                    mapOf("entries/$fileName" to md),
+                    "Backup: ${entry.title.ifEmpty { "Untitled" }} (${DateTime(entry.createdAt).toString("yyyy-MM-dd HH:mm")})"
                 )
-            } else {
-                _singleBackupState.value = BackupState.Error("Upload failed. Check if repository exists.")
+
+                if (success) {
+                    _singleBackupState.value = BackupState.Success(
+                        "\u2705 \"${entry.title.ifEmpty { "Untitled" }}\" backed up to GitLab"
+                    )
+                } else {
+                    _singleBackupState.value = BackupState.Error("Upload failed. Check if repository exists.")
+                }
             }
         } catch (e: Exception) {
             Log.e("DiaryViewModel", "Single backup failed", e)
@@ -462,13 +461,6 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ===================== AI 编写 =====================
-
-    private val _aiConfig = MutableStateFlow(AiConfig())
-    val aiConfig: StateFlow<AiConfig> = _aiConfig.asStateFlow()
-
-    fun updateAiConfig(url: String, key: String) {
-        _aiConfig.value = _aiConfig.value.copy(apiUrl = url, apiKey = key)
-    }
 
     fun aiWrite(prompt: String, config: AiConfig, callback: (String) -> Unit) = viewModelScope.launch(Dispatchers.IO) {
         try {
@@ -524,7 +516,7 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     }
 }
 
-// ===================== 数据�?=====================
+// ===================== 数据类 =====================
 
 sealed class BackupState {
     object Idle : BackupState()
