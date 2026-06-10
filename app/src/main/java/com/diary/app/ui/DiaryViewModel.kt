@@ -182,15 +182,45 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addMediaAttachment(uri: Uri, type: AttachmentType) {
+        val context = getApplication<Application>()
+        // Copy content:// URI to local app storage to survive app restart
+        val localUri = try {
+            val contentResolver = context.contentResolver
+            val mimeType = contentResolver.getType(uri)
+            val ext = when {
+                mimeType?.startsWith("image/") == true -> ".jpg"
+                mimeType?.startsWith("video/") == true -> ".mp4"
+                uri.toString().contains(".") -> uri.toString().substringAfterLast(".").take(5)
+                else -> if (type == AttachmentType.IMAGE) ".jpg" else ".mp4"
+            }
+            val dir = File(context.filesDir, "media/${if (type == AttachmentType.IMAGE) "images" else "videos"}")
+            if (!dir.exists()) dir.mkdirs()
+            val fileName = "${System.currentTimeMillis()}$ext"
+            val localFile = File(dir, fileName)
+            contentResolver.openInputStream(uri)?.use { input ->
+                localFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            Uri.fromFile(localFile).toString()
+        } catch (e: Exception) {
+            Log.e("DiaryViewModel", "Failed to copy media", e)
+            uri.toString()
+        }
+
+        val attachment = DiaryAttachment(
+            type = type,
+            uri = localUri,
+            fileName = localUri.substringAfterLast("/")
+        )
         val current = _editEntry.value
         if (current != null) {
-            val attachment = DiaryAttachment(
-                type = type,
-                uri = uri.toString(),
-                fileName = uri.lastPathSegment ?: ""
-            )
             _editEntry.value = current.copy(
                 attachments = current.attachments + attachment,
+                updatedAt = System.currentTimeMillis()
+            )
+        } else {
+            // For new diary, create a temporary entry with attachments
+            _editEntry.value = DiaryEntry(
+                attachments = listOf(attachment),
                 updatedAt = System.currentTimeMillis()
             )
         }
