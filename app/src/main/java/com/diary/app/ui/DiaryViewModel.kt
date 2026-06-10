@@ -20,6 +20,7 @@ import org.joda.time.DateTime
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 class DiaryViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -37,6 +38,14 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _singleBackupState = MutableStateFlow<BackupState>(BackupState.Idle)
     val singleBackupState: StateFlow<BackupState> = _singleBackupState.asStateFlow()
+
+    // AI config
+    private val _aiConfig = MutableStateFlow(AiConfig())
+    val aiConfig: StateFlow<AiConfig> = _aiConfig.asStateFlow()
+
+    fun updateAiConfig(url: String, key: String) {
+        _aiConfig.value = _aiConfig.value.copy(apiUrl = url, apiKey = key)
+    }
 
     // 媒体捕获相关状�?
     private val _pendingMediaUri = MutableStateFlow<Uri?>(null)
@@ -452,6 +461,50 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         _singleBackupState.value = BackupState.Idle
     }
 
+    // ===================== AI 编写 =====================
+
+    private val _aiConfig = MutableStateFlow(AiConfig())
+    val aiConfig: StateFlow<AiConfig> = _aiConfig.asStateFlow()
+
+    fun updateAiConfig(url: String, key: String) {
+        _aiConfig.value = _aiConfig.value.copy(apiUrl = url, apiKey = key)
+    }
+
+    fun aiWrite(prompt: String, config: AiConfig, callback: (String) -> Unit) = viewModelScope.launch(Dispatchers.IO) {
+        try {
+            if (prompt.isBlank()) {
+                callback("错误：提示词不能为空")
+                return@launch
+            }
+            val url = URL(config.apiUrl)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            if (config.apiKey.isNotBlank()) {
+                conn.setRequestProperty("Authorization", "Bearer ${config.apiKey}")
+            }
+            val body = """{
+                "model": "${config.model}",
+                "prompt": ${Gson().toJson(prompt)},
+                "stream": false
+            }""".trimIndent()
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            if (code in 200..299) {
+                val response = conn.inputStream.bufferedReader().readText()
+                val json = Gson().fromJson(response, JsonObject::class.java)
+                val result = json?.get("response")?.asString ?: ""
+                callback(result)
+            } else {
+                callback("错误：请求失败 (HTTP $code)")
+            }
+        } catch (e: Exception) {
+            Log.e("DiaryViewModel", "AI write failed", e)
+            callback("错误：${e.message}")
+        }
+    }
+
     // ===================== 备份设置 =====================
 
     fun loadBackupSettings(): BackupSettings {
@@ -484,4 +537,10 @@ data class BackupSettings(
     val gitlabUrl: String = "https://gitlab.com",
     val gitlabToken: String = "",
     val repoName: String = "diary-backup"
+)
+
+data class AiConfig(
+    val apiUrl: String = "http://127.0.0.1:11434/api/generate",
+    val apiKey: String = "",
+    val model: String = "llama3"
 )

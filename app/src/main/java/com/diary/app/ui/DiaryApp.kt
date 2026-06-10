@@ -391,9 +391,9 @@ fun DiaryEditScreen(
         onNavigateBack()
     }
 
-    // AI编写
+    // AI 编写
     val doAiWrite = {
-        if (aiPrompt.isBlank()) return@doAiWrite
+        if (aiPrompt.isEmpty()) return@doAiWrite
         aiLoading = true
         aiResult = ""
         viewModel.aiWrite(aiPrompt, aiConfig) { result ->
@@ -417,7 +417,7 @@ fun DiaryEditScreen(
                 },
                 actions = {
                     IconButton(onClick = { showAIDialog = true }) {
-                        Icon(Icons.AutoAwesome, contentDescription = "AI编写")
+                        Icon(Icons.Default.AutoFixHigh, contentDescription = "AI编写")
                     }
                     IconButton(onClick = saveDiary) {
                         Icon(Icons.Default.Save, contentDescription = "保存")
@@ -446,7 +446,7 @@ fun DiaryEditScreen(
                     onClick = { showAIDialog = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.AutoAwesome, contentDescription = null)
+                    Icon(Icons.Default.AutoFixHigh, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("✨ AI 帮我写")
                 }
